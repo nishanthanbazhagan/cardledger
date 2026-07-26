@@ -136,14 +136,21 @@
   .tabs{display:flex;gap:4px;margin:2px 0 13px;border-bottom:1px solid var(--line)}
   .tab{border:0;background:transparent;font-family:'Space Grotesk';font-weight:600;font-size:14px;color:var(--slate);padding:9px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab[aria-pressed="true"]{color:var(--brand);border-bottom-color:var(--brand)}
-  .budgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:14px}
-  .catrow{display:grid;grid-template-columns:1.4fr .9fr auto auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+  .budgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:0}
+  .bfield label{display:block;font-size:12px;color:var(--slate);font-weight:600;margin-bottom:6px}
+  .catrow{display:grid;grid-template-columns:1.4fr .9fr .9fr auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+  .catrow.head{border-top:0;padding-bottom:4px}
   .catrow:first-of-type{border-top:0}
-  .catrow .cbud{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;width:100%}
+  .cbud{border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:14px;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--panel);width:100%}
+  .cbud:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
   .catname{font-weight:500;font-size:13.5px;display:flex;align-items:center;gap:9px}
-  .addcat{display:flex;gap:8px;margin-top:14px}
-  .addcat input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px}
-  @media (max-width:860px){.budgrid{grid-template-columns:1fr}.catrow{grid-template-columns:1.3fr .8fr auto}}
+  .setbud{border:0;background:transparent;color:var(--brand);font-family:Inter,system-ui,sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+  .setbud:hover{text-decoration:underline}
+  .menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 30px rgba(20,24,31,.16);padding:5px;z-index:20;min-width:172px}
+  .menu button{display:block;width:100%;text-align:left;border:0;background:transparent;font-family:Inter;font-size:13.5px;color:var(--ink);padding:9px 11px;border-radius:8px;cursor:pointer}
+  .menu button:hover{background:var(--paper)}
+  .modebar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--brand-soft);border:1px solid #d6e2ec;border-radius:10px;padding:9px 13px;margin-top:12px;font-size:12.5px;color:var(--brand)}
+  @media (max-width:860px){.budgrid{grid-template-columns:1fr}.catrow{grid-template-columns:1.3fr .8fr .8fr auto}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
   @media print{.actions,.lens .seg,.arrow,.toolbar,.rowbtn,header .synbar{display:none!important}}
 </style>
@@ -210,6 +217,7 @@ let db=blankDB();
 let cfg={clientId:'',currency:'INR'};
 let view={type:'month',anchor:new Date()};
 let screen='dashboard';
+let budMode='view';
 let charts={};
 let accessToken=null, tokenClient=null, driveFileId=null, syncing=false;
 
@@ -405,61 +413,106 @@ function render(){
 function renderBudget(){
   const app=document.getElementById('app');
   const b=db.budget;
-  const mSpend={}, r=(function(){const s=new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1);return {start:s,end:new Date(view.anchor.getFullYear(),view.anchor.getMonth()+1,1)};})();
+  const mSpend={}, r={start:new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1),end:new Date(view.anchor.getFullYear(),view.anchor.getMonth()+1,1)};
   db.txns.filter(t=>inPeriod(t.date,r)).forEach(t=>mSpend[t.category]=(mSpend[t.category]||0)+t.amount);
   const totalSpend=Object.values(mSpend).reduce((a,c)=>a+c,0);
   const totalPct=b.total?Math.round(totalSpend/b.total*100):0;
   const cls=totalPct>=(b.over||100)?'over':totalPct>=(b.warn||80)?'caution':'good';
+
+  const modeBar = budMode==='view' ? '' :
+    '<div class="modebar"><span>'+(budMode==='edit'?'Edit mode — tap the ✎ on a category to change its name or budget.':'Delete mode — tap the 🗑 on a category to remove it.')+'</span><button class="btn sm" id="b_done">Done</button></div>';
+
   app.innerHTML=
-    '<div class="card" style="margin-bottom:13px"><h2>Monthly budget <span class="muted">applies to each month; quarter/half/year scale automatically</span></h2>'+
-      '<div class="budgrid" style="margin-top:10px">'+
-        '<div><label class="cell-lab">Total monthly budget</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="150000"></div>'+
-        '<div><label class="cell-lab">Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
-        '<div><label class="cell-lab">Over at %</label><input id="b_over" class="cbud" type="number" value="'+(b.over||100)+'"></div>'+
+    '<div class="card" style="margin-bottom:13px"><h2>Monthly budget <span class="muted">applies to each month; quarter / half / year scale automatically</span></h2>'+
+      '<div class="budgrid" style="margin-top:12px">'+
+        '<div class="bfield"><label>Total monthly budget</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="e.g. 150000"></div>'+
+        '<div class="bfield"><label>Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
+        '<div class="bfield"><label>Over at %</label><input id="b_over" class="cbud" type="number" value="'+(b.over||100)+'"></div>'+
       '</div>'+
-      (b.total?'<div class="track" style="height:9px"><div class="fill" style="width:'+Math.min(100,totalPct)+'%;background:var(--'+cls+')"></div></div>'+
-        '<div class="sub" style="font-size:12.5px;color:var(--slate);margin-top:7px">This month so far: <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' &nbsp;·&nbsp; <span class="pill '+cls+'">'+totalPct+'%</span></div>':'')+
+      (b.total?'<div class="track" style="height:9px;margin-top:14px"><div class="fill" style="width:'+Math.min(100,totalPct)+'%;background:var(--'+cls+')"></div></div>'+
+        '<div class="sub" style="font-size:12.5px;color:var(--slate);margin-top:8px">This month so far: <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' &nbsp;·&nbsp; <span class="pill '+cls+'">'+totalPct+'%</span></div>':'')+
     '</div>'+
-    '<div class="card"><h2>Categories &amp; per-category budgets <span class="muted">✕ removes from dropdowns · past entries keep their label</span></h2>'+
-      '<div style="margin-top:6px">'+
-      '<div class="catrow" style="border:0;color:var(--slate)"><div class="cell-lab">Category</div><div class="cell-lab">Monthly budget</div><div class="cell-lab" style="text-align:right">Spent (this month)</div><div></div></div>'+
+    '<div class="card"><h2>Categories &amp; per-category budgets'+
+      '<span style="position:relative;display:inline-block"><button class="btn sm" id="cat_gear">⚙ Manage ▾</button>'+
+        '<div class="menu" id="cat_menu" style="display:none">'+
+          '<button data-m="add">＋&nbsp; Add category</button>'+
+          '<button data-m="edit">✎&nbsp; Edit category</button>'+
+          '<button data-m="delete">🗑&nbsp; Delete category</button>'+
+        '</div></span></h2>'+
+      modeBar+
+      '<div style="margin-top:8px">'+
+      '<div class="catrow head"><div class="cell-lab">Category</div><div class="cell-lab">Monthly budget</div><div class="cell-lab" style="text-align:right">Spent this month</div><div></div></div>'+
       (db.settings.categories||[]).map(c=>{
         const bg=b.categories[c]||0, sp=mSpend[c]||0, over=bg&&sp>bg;
+        let action='<div></div>';
+        if(budMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editcat="'+esc(c)+'" title="Edit">✎</button></div>';
+        else if(budMode==='delete')action='<div style="text-align:right"><button class="rowbtn danger" data-delcat="'+esc(c)+'" title="Delete">🗑</button></div>';
         return '<div class="catrow"><div class="catname"><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+'</div>'+
-          '<div><input class="cbud b_cat" data-cat="'+esc(c)+'" type="number" value="'+(bg||'')+'" placeholder="no limit"></div>'+
+          '<div class="mono" style="font-size:13px">'+(bg?'<span style="color:var(--ink)">'+fmt(bg)+'</span>':'<button class="setbud" data-setbud="'+esc(c)+'">+ Set budget</button>')+'</div>'+
           '<div class="mono" style="text-align:right;font-size:13px;color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(sp)+'</div>'+
-          '<div style="text-align:right"><button class="rowbtn danger" data-rmcat="'+esc(c)+'" title="Remove category">✕</button></div></div>';
+          action+'</div>';
       }).join('')+
-      '<div class="addcat"><input id="b_newcat" placeholder="Add a category (e.g. Insurance, Rent)"><button class="btn" id="b_addcat">+ Add category</button></div>'+
       '</div></div>';
-  // wire
+
+  // monthly budget numbers save on change (blur)
   const commitNums=()=>{
     db.budget.total=+document.getElementById('b_total').value||0;
     db.budget.warn=+document.getElementById('b_warn').value||80;
     db.budget.over=+document.getElementById('b_over').value||100;
-    document.querySelectorAll('.b_cat').forEach(i=>{const v=+i.value;if(v)db.budget.categories[i.dataset.cat]=v;else delete db.budget.categories[i.dataset.cat];});
     saveLocal(); if(accessToken) scheduleSync();
   };
   ['b_total','b_warn','b_over'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{commitNums();render();}));
-  document.querySelectorAll('.b_cat').forEach(i=>i.addEventListener('change',()=>{commitNums();render();}));
-  document.querySelectorAll('[data-rmcat]').forEach(btn=>btn.onclick=()=>{
-    commitNums();
-    const name=btn.dataset.rmcat;
-    if(db.txns.some(t=>t.category===name)&&!confirm('"'+name+'" is used by existing transactions. Remove it from the list anyway? Past transactions keep their label.'))return;
-    db.settings.categories=(db.settings.categories||[]).filter(x=>x!==name);
-    delete db.budget.categories[name];
-    CATCOLORS_ready=false; persist();
+
+  // manage menu
+  const menu=document.getElementById('cat_menu');
+  const gear=document.getElementById('cat_gear');
+  gear.onclick=(e)=>{e.stopPropagation();menu.style.display=menu.style.display==='none'?'block':'none';};
+  document.addEventListener('click',()=>{if(menu)menu.style.display='none';},{once:true});
+  menu.querySelectorAll('button').forEach(mb=>mb.onclick=(e)=>{
+    e.stopPropagation();menu.style.display='none';
+    const m=mb.dataset.m;
+    if(m==='add'){budMode='view';openCategory();}
+    else {budMode=m;render();}
   });
-  const addCat=()=>{
-    commitNums();
-    const inp=document.getElementById('b_newcat'), v=inp.value.trim();
-    if(!v)return;
-    if((db.settings.categories||[]).some(c=>c.toLowerCase()===v.toLowerCase()))return toast('Category already exists');
-    db.settings.categories=(db.settings.categories||[]).concat(v);
-    CATCOLORS_ready=false; persist();
+  const done=document.getElementById('b_done'); if(done)done.onclick=()=>{budMode='view';render();};
+  document.querySelectorAll('[data-editcat]').forEach(btn=>btn.onclick=()=>openCategory(btn.dataset.editcat));
+  document.querySelectorAll('[data-delcat]').forEach(btn=>btn.onclick=()=>deleteCategory(btn.dataset.delcat));
+  document.querySelectorAll('[data-setbud]').forEach(btn=>btn.onclick=()=>openCategory(btn.dataset.setbud));
+}
+
+function openCategory(name){
+  const editing=!!name;
+  const curBud=editing?(db.budget.categories[name]||''):'';
+  showModal('<h3>'+(editing?'Edit category':'Add category')+'</h3>'+
+    '<div class="field"><label>Category name</label><input id="c_name" value="'+esc(name||'')+'" placeholder="e.g. Insurance"></div>'+
+    '<div class="field"><label>Monthly budget (optional)</label><input id="c_bud" type="number" value="'+curBud+'" placeholder="leave blank for no limit"></div>'+
+    '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="c_save">Save</button></div></div>');
+  document.getElementById('c_save').onclick=()=>{
+    const nm=document.getElementById('c_name').value.trim();
+    if(!nm)return toast('Enter a category name');
+    const bud=+document.getElementById('c_bud').value||0;
+    const cats=db.settings.categories||[];
+    const clash=cats.some(x=>x.toLowerCase()===nm.toLowerCase()&&x!==name);
+    if(clash)return toast('That category already exists');
+    if(editing){
+      if(nm!==name){
+        db.settings.categories=cats.map(x=>x===name?nm:x);
+        if(db.budget.categories[name]!=null){db.budget.categories[nm]=db.budget.categories[name];delete db.budget.categories[name];}
+        db.txns.forEach(t=>{if(t.category===name){t.category=nm;t.updatedAt=now();}});
+      }
+      if(bud)db.budget.categories[nm]=bud; else delete db.budget.categories[nm];
+    } else {
+      db.settings.categories=cats.concat(nm);
+      if(bud)db.budget.categories[nm]=bud;
+    }
+    CATCOLORS_ready=false; closeModal(); persist(); toast(editing?'Category updated':'Category added');
   };
-  document.getElementById('b_addcat').onclick=addCat;
-  document.getElementById('b_newcat').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCat();}});
+}
+function deleteCategory(name){
+  if(!confirm('Delete category "'+name+'"?'+(db.txns.some(t=>t.category===name)?' It is used by existing transactions — they will keep their label.':'')))return;
+  db.settings.categories=(db.settings.categories||[]).filter(x=>x!==name);
+  delete db.budget.categories[name];
+  CATCOLORS_ready=false; persist();
 }
 
 function emptyState(){
@@ -908,7 +961,7 @@ document.getElementById('btnTxn').onclick=()=>openTxn();
 document.getElementById('btnSettings').onclick=openSettings;
 document.getElementById('btnData').onclick=openData;
 document.getElementById('btnSync').onclick=connectDrive;
-document.querySelectorAll('#tabs .tab').forEach(b=>b.onclick=()=>{screen=b.dataset.s;render();});
+document.querySelectorAll('#tabs .tab').forEach(b=>b.onclick=()=>{screen=b.dataset.s;budMode='view';render();});
 document.getElementById('segLens').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   view.type=b.dataset.t;
   document.querySelectorAll('#segLens button').forEach(x=>x.setAttribute('aria-pressed','false'));
