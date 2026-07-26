@@ -197,8 +197,8 @@
     margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
   .legend:empty{display:none}
   .legend div{display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--slate);
-    padding:6px 0;border-radius:var(--r-sm);transition:color .14s var(--ease)}
-  .legend div:hover{color:var(--ink)}
+    padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;transition:color .14s var(--ease),background .14s var(--ease)}
+  .legend div:hover,.legend div.hl{color:var(--ink);background:var(--panel-2)}
   .legend .dot{width:10px;height:10px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(15,21,36,.10)}
   .legend b{margin-left:auto;color:var(--ink);font-family:'JetBrains Mono';font-weight:600;font-size:var(--fs-sm)}
 
@@ -1191,9 +1191,20 @@ function drawCharts(){
     let tpos='average';
     try{if(window.Chart&&Chart.Tooltip&&Chart.Tooltip.positioners){Chart.Tooltip.positioners.cursor=function(items,pos){return pos;};tpos='cursor';}}catch(e){}
     charts.cat=new Chart(cc,{type:'doughnut',plugins:[centerPlugin],
-      data:{labels:cats,datasets:[{data:cats.map(c=>byCat[c]),backgroundColor:cats.map(catColor),borderWidth:2,borderColor:'#171F2E'}]},
-      options:{cutout:'66%',plugins:{legend:{display:false},tooltip:{position:tpos,caretPadding:10,callbacks:{label:x=>' '+x.label+': '+fmt(x.parsed)}}}}});
-    document.getElementById('catLegend').innerHTML=cats.map(c=>'<div><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+' <b>'+fmt(byCat[c])+'</b></div>').join('');
+      data:{labels:cats,datasets:[{data:cats.map(c=>byCat[c]),backgroundColor:cats.map(catColor),borderWidth:2,borderColor:'#171F2E',hoverOffset:12,hoverBorderColor:'#171F2E'}]},
+      options:{cutout:'66%',
+        onHover:(e,els)=>{const leg=document.getElementById('catLegend');if(!leg)return;
+          leg.querySelectorAll('[data-ci]').forEach(el=>el.classList.remove('hl'));
+          if(els&&els.length){const row=leg.querySelector('[data-ci="'+els[0].index+'"]');if(row)row.classList.add('hl');}},
+        plugins:{legend:{display:false},tooltip:{position:tpos,caretPadding:10,callbacks:{label:x=>' '+x.label+': '+fmt(x.parsed)}}}}});
+    const legEl=document.getElementById('catLegend');
+    legEl.innerHTML=cats.map((c,i)=>'<div data-ci="'+i+'" title="View transactions"><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+' <b>'+fmt(byCat[c])+'</b></div>').join('');
+    legEl.querySelectorAll('[data-ci]').forEach(el=>{
+      const idx=+el.dataset.ci;
+      el.addEventListener('mouseenter',()=>{try{charts.cat.setActiveElements([{datasetIndex:0,index:idx}]);charts.cat.update();}catch(e){}});
+      el.addEventListener('mouseleave',()=>{try{charts.cat.setActiveElements([]);charts.cat.update();}catch(e){}});
+      el.addEventListener('click',()=>{txFilter={q:'',card:'',cat:cats[idx]};screen='transactions';render();});
+    });
   } else {cc.parentElement.innerHTML='<div class="empty" style="padding:60px 0">No spends in this period.</div>';document.getElementById('catLegend').innerHTML='';}
 
   // trend
