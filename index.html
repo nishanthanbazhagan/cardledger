@@ -481,6 +481,8 @@
   .count-badge{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--brand-soft);color:var(--brand);font-family:Inter;font-size:11px;font-weight:600}
   .cards-summary{margin-top:10px;font-size:var(--fs-sm);color:var(--slate)}
   .cards-summary b{color:var(--ink)}
+  .h2-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .as-of{font-family:Inter;font-weight:500;font-size:var(--fs-xs);color:var(--slate-2);background:var(--paper);padding:3px 10px;border-radius:var(--r-pill);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
 
   @keyframes overlayIn{from{opacity:0}to{opacity:1}}  @keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
   @keyframes menuIn{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
@@ -1043,8 +1045,10 @@ function cardsHTML(){
   const n=db.cards.length, active=activeCards().length;
   const totalOut=db.cards.reduce((s,c)=>s+cardStats(c).overall,0);
   const dueNow=db.cards.reduce((s,c)=>s+cardStats(c).billedDue,0);
+  const asOf=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   const head='<h2>'+
-    '<span class="sec-toggle" id="cards_toggle"><span class="chev">'+(cardsOpen?'▾':'▸')+'</span>Your Cards<span class="count-badge">'+n+'</span></span>'+
+    '<span class="h2-left"><span class="sec-toggle" id="cards_toggle"><span class="chev">'+(cardsOpen?'▾':'▸')+'</span>Your Cards<span class="count-badge">'+n+'</span></span>'+
+    '<span class="as-of">as of '+asOf+'</span></span>'+
     (cardsOpen?'<span style="position:relative;display:inline-block"><button class="btn sm" id="card_gear">⚙ Manage ▾</button>'+
       '<div class="menu" id="card_menu" style="display:none">'+
         '<button data-m="add">＋&nbsp; Add Card</button>'+
