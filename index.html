@@ -184,6 +184,11 @@
   .grid .card h2 .muted{background:var(--paper);color:var(--slate);padding:4px 10px;border-radius:var(--r-pill);
     font-size:11px;font-weight:500;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;letter-spacing:0}
   .chartbox{position:relative;height:240px;margin-top:12px}
+  .donut-wrap{display:grid;grid-template-columns:minmax(0,240px) 1fr;gap:22px;align-items:center;margin-top:12px}
+  .donut-wrap .chartbox{margin-top:0}
+  .donut-wrap .legend{margin-top:0;padding-top:0;border-top:0;grid-template-columns:1fr 1fr;gap:2px 18px;align-content:center}
+  @media (max-width:760px){.donut-wrap{grid-template-columns:1fr;gap:6px}
+    .donut-wrap .legend{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}}
   .chartbox .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:12px;color:var(--slate-2);font-size:var(--fs-sm);font-weight:500;padding:0}
   .chartbox .empty::before{content:"";width:48px;height:48px;border-radius:50%;border:2.5px dashed var(--line-2);
@@ -469,6 +474,13 @@
   .csv-table td.amt{font-family:'JetBrains Mono';font-weight:600;text-align:right;color:var(--ink)}
   .dupflag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--caution-ink);background:var(--caution-soft);padding:1px 6px;border-radius:var(--r-pill);margin-left:5px}
   .csv-inc{width:17px;height:17px;cursor:pointer}
+  /* collapsible Your Cards */
+  .sec-toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none;color:var(--ink);font-family:'Space Grotesk';font-weight:600;font-size:var(--fs-lg);letter-spacing:-.02em}
+  .sec-toggle .chev{display:inline-grid;place-items:center;width:20px;height:20px;font-size:12px;color:var(--slate);transition:color .15s var(--ease)}
+  .sec-toggle:hover .chev{color:var(--ink)}
+  .count-badge{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--brand-soft);color:var(--brand);font-family:Inter;font-size:11px;font-weight:600}
+  .cards-summary{margin-top:10px;font-size:var(--fs-sm);color:var(--slate)}
+  .cards-summary b{color:var(--ink)}
 
   @keyframes overlayIn{from{opacity:0}to{opacity:1}}  @keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
   @keyframes menuIn{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
@@ -490,17 +502,16 @@
         <button class="btn sm" id="btnSettings">Settings</button>
         <button class="btn sm" id="btnData">Data ▾</button>
       </div>
-      <span class="act-sep" aria-hidden="true"></span>
       <div class="act-primary">
-        <button class="btn" id="btnCard">+ Card</button>
-        <button class="btn primary" id="btnTxn">+ Log spend</button>
+        <button class="btn primary" id="btnTxn">+ Log Spend</button>
       </div>
     </div>
   </header>
 
   <div class="tabs" id="tabs">
     <button class="tab" data-s="dashboard" aria-pressed="true">Dashboard</button>
-    <button class="tab" data-s="budget" aria-pressed="false">Budget &amp; categories</button>
+    <button class="tab" data-s="transactions" aria-pressed="false">Transactions</button>
+    <button class="tab" data-s="budget" aria-pressed="false">Budget &amp; Categories</button>
   </div>
 
   <div class="lens" id="lensBar">
@@ -545,6 +556,7 @@ let view={type:'month',anchor:new Date()};
 let screen='dashboard';
 let budMode='view';
 let cardMode='view';
+let cardsOpen=true;
 let charts={};
 let accessToken=null, tokenClient=null, driveFileId=null, syncing=false;
 
@@ -815,14 +827,19 @@ function render(){
   buildCatColors();
   document.getElementById('curMark').textContent=sym().trim()||'₹';
   document.querySelectorAll('#tabs .tab').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===screen?'true':'false'));
-  document.getElementById('lensBar').style.display=(screen==='dashboard')?'':'none';
+  document.getElementById('lensBar').style.display=(screen==='budget')?'none':'';
+  document.getElementById('btnTxn').style.display=(screen==='transactions')?'':'none';
   const app=document.getElementById('app');
   if(screen==='budget'){renderBudget();return;}
   document.getElementById('periodLabel').textContent=periodRange().label;
+  if(screen==='transactions'){
+    app.innerHTML=txnHTML();
+    wireTxnTable();
+    return;
+  }
   if(db.cards.length===0){ app.innerHTML=emptyState(); wireEmpty(); return; }
-  app.innerHTML = tilesHTML()+cardsHTML()+chartsHTML()+recurringHTML()+budgetHTML()+txnHTML();
+  app.innerHTML = tilesHTML()+cardsHTML()+chartsHTML()+recurringHTML()+budgetHTML();
   drawCharts();
-  wireTxnTable();
   wireCards();
 }
 
@@ -839,7 +856,7 @@ function renderBudget(){
     '<div class="modebar"><span>'+(budMode==='edit'?'Edit mode — tap the ✎ on a category to change its name or budget.':'Delete mode — tap the 🗑 on a category to remove it.')+'</span><button class="btn sm" id="b_done">Done</button></div>';
 
   app.innerHTML=
-    '<div class="card" style="margin-bottom:13px"><h2>Monthly budget <span class="muted">applies to each month; quarter / half / year scale automatically</span></h2>'+
+    '<div class="card" style="margin-bottom:13px"><h2>Monthly Budget <span class="muted">Per month · longer periods scale automatically</span></h2>'+
       '<div class="budgrid" style="margin-top:12px">'+
         '<div class="bfield"><label>Total monthly budget</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="e.g. 150000"></div>'+
         '<div class="bfield"><label>Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
@@ -848,12 +865,12 @@ function renderBudget(){
       (b.total?'<div class="track" style="height:9px;margin-top:14px"><div class="fill" style="width:'+Math.min(100,totalPct)+'%;background:var(--'+cls+')"></div></div>'+
         '<div class="sub" style="font-size:12.5px;color:var(--slate);margin-top:8px">This month so far: <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' &nbsp;·&nbsp; <span class="pill '+cls+'">'+totalPct+'%</span></div>':'')+
     '</div>'+
-    '<div class="card"><h2>Categories &amp; per-category budgets'+
+    '<div class="card"><h2>Categories &amp; Per-Category Budgets'+
       '<span style="position:relative;display:inline-block"><button class="btn sm" id="cat_gear">⚙ Manage ▾</button>'+
         '<div class="menu" id="cat_menu" style="display:none">'+
-          '<button data-m="add">＋&nbsp; Add category</button>'+
-          '<button data-m="edit">✎&nbsp; Edit category</button>'+
-          '<button data-m="delete">🗑&nbsp; Delete category</button>'+
+          '<button data-m="add">＋&nbsp; Add Category</button>'+
+          '<button data-m="edit">✎&nbsp; Edit Category</button>'+
+          '<button data-m="delete">🗑&nbsp; Delete Category</button>'+
         '</div></span></h2>'+
       modeBar+
       '<div style="margin-top:8px">'+
@@ -864,7 +881,7 @@ function renderBudget(){
         if(budMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editcat="'+esc(c)+'" title="Edit">✎</button></div>';
         else if(budMode==='delete')action='<div style="text-align:right"><button class="rowbtn danger" data-delcat="'+esc(c)+'" title="Delete">🗑</button></div>';
         return '<div class="catrow"><div class="catname"><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+'</div>'+
-          '<div class="mono" style="font-size:13px">'+(bg?'<span style="color:var(--ink)">'+fmt(bg)+'</span>':'<button class="setbud" data-setbud="'+esc(c)+'">+ Set budget</button>')+'</div>'+
+          '<div class="mono" style="font-size:13px">'+(bg?'<span style="color:var(--ink)">'+fmt(bg)+'</span>':'<button class="setbud" data-setbud="'+esc(c)+'">+ Set Budget</button>')+'</div>'+
           '<div class="mono" style="text-align:right;font-size:13px;color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(sp)+'</div>'+
           action+
           (bg?'<div class="catbar"><div class="catbar-fill" style="width:'+Math.min(100,sp/bg*100)+'%;background:'+(over?'var(--over)':(sp/bg*100)>85?'var(--caution)':'var(--good)')+'"></div></div>':'')+
@@ -901,7 +918,7 @@ function renderBudget(){
 function openCategory(name){
   const editing=!!name;
   const curBud=editing?(db.budget.categories[name]||''):'';
-  showModal('<h3>'+(editing?'Edit category':'Add category')+'</h3>'+
+  showModal('<h3>'+(editing?'Edit Category':'Add Category')+'</h3>'+
     '<div class="field"><label>Category name</label><input id="c_name" value="'+esc(name||'')+'" placeholder="e.g. Insurance"></div>'+
     '<div class="field"><label>Monthly budget (optional)</label><input id="c_bud" type="number" value="'+curBud+'" placeholder="leave blank for no limit"></div>'+
     '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="c_save">Save</button></div></div>');
@@ -940,8 +957,8 @@ function emptyState(){
   return '<div class="card"><div class="empty"><h3>Welcome to CardLedger</h3>'+
     '<p>Start by adding a credit card, then log your spends. Everything is saved on your device and can sync to your Google Drive.</p>'+
     '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'+
-    '<button class="btn primary" id="emAdd">+ Add your first card</button>'+
-    '<button class="btn" id="emSample">Load sample data</button></div></div></div>';
+    '<button class="btn primary" id="emAdd">+ Add Your First Card</button>'+
+    '<button class="btn" id="emSample">Load Sample Data</button></div></div></div>';
 }
 function wireEmpty(){
   document.getElementById('emAdd').onclick=()=>openCard();
@@ -961,13 +978,14 @@ function tilesHTML(){
   const outstanding=db.cards.reduce((s,c)=>s+cardOutstanding(c.id),0);
   const util=limit?Math.round(outstanding/limit*100):0;
   const utilCls=util>=70?'over':util>=30?'caution':'good';
+  const pcap=view.type.charAt(0).toUpperCase()+view.type.slice(1);
   return '<div class="tiles">'+
-    tile('var(--brand)','Total spent',fmt(total),tx.length+' transactions')+
-    tile('var(--slate)','Budget ('+view.type+')',budget?fmt(budget):'— not set',
-        budget?('<span class="pill '+budgetCls+'">'+pct+'% used</span> '+(left>=0?fmt(left)+' left':fmt(-left)+' over')):'set in Settings',
+    tile('var(--brand)','Total Spent',fmt(total),tx.length+' transactions')+
+    tile('var(--slate)','Budget ('+pcap+')',budget?fmt(budget):'— Not set',
+        budget?('<span class="pill '+budgetCls+'">'+pct+'% used</span> '+(left>=0?fmt(left)+' left':fmt(-left)+' over')):'Set in Settings',
         budget?{pct:Math.min(100,pct),cls:budgetCls}:null)+
-    tile('var(--good)','vs previous '+view.type, prevTx?((diff>=0?'+':'')+diff+'%'):'—', prevTx?('previous: '+fmt(prevTx)):'no prior data')+
-    tile('var(--brand)','Overall utilization',util+'%','<span class="pill '+utilCls+'">'+(util>=70?'High':util>=30?'Watch':'Healthy')+'</span> '+fmt(outstanding)+' of '+fmt(limit),{pct:Math.min(100,util),cls:utilCls})+
+    tile('var(--good)','vs Previous '+pcap, prevTx?((diff>=0?'+':'')+diff+'%'):'—', prevTx?('Previous: '+fmt(prevTx)):'No prior data')+
+    tile('var(--brand)','Overall Utilization',util+'%','<span class="pill '+utilCls+'">'+(util>=70?'High':util>=30?'Watch':'Healthy')+'</span> '+fmt(outstanding)+' of '+fmt(limit),{pct:Math.min(100,util),cls:utilCls})+
     '</div>';
 }
 function tile(color,k,v,sub,bar){
@@ -1022,15 +1040,31 @@ function cardStatusLine(c,s){
   return '<small class="cstat good">No dues · Next statement '+fmtDay(s.nextStmt)+'</small>';
 }
 function cardsHTML(){
+  const n=db.cards.length, active=activeCards().length;
+  const totalOut=db.cards.reduce((s,c)=>s+cardStats(c).overall,0);
+  const dueNow=db.cards.reduce((s,c)=>s+cardStats(c).billedDue,0);
+  const head='<h2>'+
+    '<span class="sec-toggle" id="cards_toggle"><span class="chev">'+(cardsOpen?'▾':'▸')+'</span>Your Cards<span class="count-badge">'+n+'</span></span>'+
+    (cardsOpen?'<span style="position:relative;display:inline-block"><button class="btn sm" id="card_gear">⚙ Manage ▾</button>'+
+      '<div class="menu" id="card_menu" style="display:none">'+
+        '<button data-m="add">＋&nbsp; Add Card</button>'+
+        '<button data-m="edit">✎&nbsp; Edit Card</button>'+
+        '<button data-m="pay">₹&nbsp; Record Payment</button>'+
+      '</div></span>':'')+
+    '</h2>';
+  if(!cardsOpen){
+    return '<div class="card" style="margin-bottom:13px">'+head+
+      '<div class="cards-summary">'+active+' active card'+(active!==1?'s':'')+
+      ' · <b class="mono">'+fmt(dueNow)+'</b> due now · <b class="mono">'+fmt(totalOut)+'</b> outstanding</div></div>';
+  }
   const modeBar = cardMode==='view' ? '' :
-    '<div class="modebar"><span>'+({edit:'Edit mode — tap the ✎ on a card to change its details.',pay:'Payment mode — tap the ₹ on a card to record a payment.',delete:'Delete mode — tap the 🗑 on a card to remove it.'}[cardMode])+'</span><button class="btn sm" id="card_done">Done</button></div>';
+    '<div class="modebar"><span>'+({edit:'Edit mode — tap the ✎ on a card to change its details.',pay:'Payment mode — tap the ₹ on a card to record a payment.'}[cardMode]||'')+'</span><button class="btn sm" id="card_done">Done</button></div>';
   const rows=db.cards.slice().sort((a,b)=>(a.status==='closed')-(b.status==='closed')).map(c=>{
     const s=cardStats(c);
     const cls=s.pct>=70?'over':s.pct>=30?'caution':'good';
     let action='<div></div>';
     if(cardMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editc="'+c.id+'" title="Edit">✎</button></div>';
     else if(cardMode==='pay')action='<div style="text-align:right"><button class="rowbtn" data-pay="'+c.id+'" title="Record payment">₹</button></div>';
-    else if(cardMode==='delete')action='<div style="text-align:right"><button class="rowbtn danger" data-delc="'+c.id+'" title="Delete">🗑</button></div>';
     return '<div class="crow">'+
       '<div class="cname"><span class="chip" style="background:'+(c.color||'#23405C')+'"></span>'+
         '<div><b>'+esc(c.name)+(c.status==='closed'?'<span class="closed-badge">Closed</span>':'')+'</b>'+
@@ -1041,21 +1075,15 @@ function cardsHTML(){
       '<div class="util"><div class="track"><div class="fill" style="width:'+Math.min(100,s.pct)+'%;background:var(--'+cls+')"></div></div><span class="num">'+s.pct+'%</span></div>'+
       action+'</div>';
   }).join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Your cards'+
-    '<span style="position:relative;display:inline-block"><button class="btn sm" id="card_gear">⚙ Manage ▾</button>'+
-      '<div class="menu" id="card_menu" style="display:none">'+
-        '<button data-m="edit">✎&nbsp; Edit card</button>'+
-        '<button data-m="pay">₹&nbsp; Record payment</button>'+
-        '<button data-m="delete">🗑&nbsp; Delete card</button>'+
-      '</div></span></h2>'+
+  return '<div class="card" style="margin-bottom:13px">'+head+
     modeBar+'<div style="margin-top:8px">'+rows+'</div></div>';
 }
 
 function chartsHTML(){
   return '<div class="grid">'+
-    '<div class="card"><h2>Where it went <span class="muted">'+periodRange().label+' · by category</span></h2>'+
-      '<div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div>'+
-    '<div class="card"><h2>Spend trend <span class="muted">'+periodRange().label+'</span></h2>'+
+    '<div class="card"><h2>Where It Went <span class="muted">'+periodRange().label+' · by category</span></h2>'+
+      '<div class="donut-wrap"><div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div></div>'+
+    '<div class="card"><h2>Spend Trend <span class="muted">'+periodRange().label+'</span></h2>'+
       '<div class="chartbox"><canvas id="trendChart"></canvas></div></div>'+
     '</div>';
 }
@@ -1072,7 +1100,7 @@ function budgetHTML(){
     const col=over?'var(--over)':pct>85?'var(--caution)':'var(--good)';
     return '<div><div class="line"><span>'+esc(cat)+'</span><span class="amt" style="color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(actual)+' <span style="color:var(--slate);font-weight:400">/ '+fmt(bg)+'</span></span></div><div class="track" style="height:9px"><div class="fill" style="width:'+pct+'%;background:'+col+'"></div></div></div>';
   }).join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Budget vs actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
+  return '<div class="card" style="margin-bottom:13px"><h2>Budget vs Actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
 }
 function recurringHTML(){
   const rec=detectRecurring();
@@ -1081,7 +1109,7 @@ function recurringHTML(){
   const rows=rec.map(r=>'<div class="rrow"><div class="rname"><span class="dot" style="background:'+catColor(r.category)+'"></span>'+
     '<div><b>'+esc(r.merchant)+'</b><small>'+esc(r.category)+' · seen in '+r.months+' months</small></div></div>'+
     '<div class="ramt mono">'+fmt(r.amount)+'<span>/mo</span></div></div>').join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Recurring &amp; subscriptions <span class="muted">≈ '+fmt(monthly)+'/mo across '+rec.length+' item'+(rec.length>1?'s':'')+'</span></h2>'+
+  return '<div class="card" style="margin-bottom:13px"><h2>Recurring &amp; Subscriptions <span class="muted">≈ '+fmt(monthly)+'/mo across '+rec.length+' item'+(rec.length>1?'s':'')+'</span></h2>'+
     '<div class="rlist">'+rows+'</div></div>';
 }
 
@@ -1125,16 +1153,18 @@ function wireTxnTable(){
   document.getElementById('txCat').onchange=e=>{txFilter.cat=e.target.value;renderTxRows();};
 }
 function wireCards(){
+  const toggle=document.getElementById('cards_toggle');
+  if(toggle)toggle.onclick=()=>{cardsOpen=!cardsOpen;cardMode='view';render();};
   const menu=document.getElementById('card_menu'),gear=document.getElementById('card_gear');
   if(gear&&menu){
     gear.onclick=e=>{e.stopPropagation();menu.style.display=menu.style.display==='none'?'block':'none';};
     document.addEventListener('click',()=>{menu.style.display='none';},{once:true});
-    menu.querySelectorAll('button').forEach(mb=>mb.onclick=e=>{e.stopPropagation();menu.style.display='none';cardMode=mb.dataset.m;render();});
+    menu.querySelectorAll('button').forEach(mb=>mb.onclick=e=>{e.stopPropagation();menu.style.display='none';
+      if(mb.dataset.m==='add'){cardMode='view';openCard();}else{cardMode=mb.dataset.m;render();}});
   }
   const done=document.getElementById('card_done');if(done)done.onclick=()=>{cardMode='view';render();};
   document.querySelectorAll('[data-editc]').forEach(b=>b.onclick=()=>openCard(b.dataset.editc));
   document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>openPayment(b.dataset.pay));
-  document.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>deleteCard(b.dataset.delc));
 }
 
 function drawCharts(){
@@ -1154,9 +1184,11 @@ function drawCharts(){
       ctx.fillStyle='#EAEEF5';ctx.font='600 20px "JetBrains Mono", monospace';
       ctx.fillText(fmt(total),cx,cy+7);ctx.restore();
     }};
+    let tpos='average';
+    try{if(window.Chart&&Chart.Tooltip&&Chart.Tooltip.positioners){Chart.Tooltip.positioners.cursor=function(items,pos){return pos;};tpos='cursor';}}catch(e){}
     charts.cat=new Chart(cc,{type:'doughnut',plugins:[centerPlugin],
       data:{labels:cats,datasets:[{data:cats.map(c=>byCat[c]),backgroundColor:cats.map(catColor),borderWidth:2,borderColor:'#171F2E'}]},
-      options:{cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>' '+x.label+': '+fmt(x.parsed)}}}}});
+      options:{cutout:'66%',plugins:{legend:{display:false},tooltip:{position:tpos,caretPadding:10,callbacks:{label:x=>' '+x.label+': '+fmt(x.parsed)}}}}});
     document.getElementById('catLegend').innerHTML=cats.map(c=>'<div><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+' <b>'+fmt(byCat[c])+'</b></div>').join('');
   } else {cc.parentElement.innerHTML='<div class="empty" style="padding:60px 0">No spends in this period.</div>';document.getElementById('catLegend').innerHTML='';}
 
@@ -1190,7 +1222,7 @@ overlay.onclick=e=>{if(e.target===overlay)closeModal();};
 function openCard(id){
   const c=id?db.cards.find(x=>x.id===id):null;
   const sw=PALETTE.map(col=>'<span data-col="'+col+'" style="background:'+col+'" aria-selected="'+((c&&c.color===col)||(!c&&col===PALETTE[db.cards.length%PALETTE.length])?'true':'false')+'"></span>').join('');
-  showModal('<h3>'+(c?'Edit card':'Add card')+'</h3>'+
+  showModal('<h3>'+(c?'Edit Card':'Add Card')+'</h3>'+
     '<div class="field"><label>Card name</label><input id="f_name" value="'+esc(c?c.name:'')+'" placeholder="e.g. HDFC Millennia"></div>'+
     '<div class="row2"><div class="field"><label>Last 4 digits</label><input id="f_last4" maxlength="4" value="'+esc(c?c.last4:'')+'" placeholder="4521"></div>'+
     '<div class="field"><label>Credit limit</label><input id="f_limit" type="number" value="'+(c?c.limit:'')+'" placeholder="200000"></div></div>'+
@@ -1224,7 +1256,7 @@ function openTxn(id){
   const cardOpts=cardsForPick.map(c=>'<option value="'+c.id+'"'+(t&&t.cardId===c.id?' selected':'')+'>'+esc(c.name)+' •• '+esc(c.last4||'')+'</option>').join('');
   const catOpts=(db.settings.categories||[]).map(c=>'<option'+(t&&t.category===c?' selected':'')+'>'+esc(c)+'</option>').join('');
   const today=new Date().toISOString().slice(0,10);
-  showModal('<h3>'+(t?'Edit spend':'Log spend')+'</h3>'+
+  showModal('<h3>'+(t?'Edit Spend':'Log Spend')+'</h3>'+
     '<div class="row2"><div class="field"><label>Date</label><input id="t_date" type="date" value="'+(t?t.date:today)+'"></div>'+
     '<div class="field"><label>Amount</label><input id="t_amt" type="number" step="0.01" value="'+(t?t.amount:'')+'" placeholder="0"></div></div>'+
     '<div class="field"><label>Merchant / description</label><input id="t_merch" value="'+esc(t?t.merchant:'')+'" placeholder="e.g. Amazon"></div>'+
@@ -1277,7 +1309,7 @@ function openPayment(cardId){
   const ctx=s.cycleAware
     ? 'Due now (this statement): <b class="mono">'+fmt(s.billedDue)+'</b> &nbsp;·&nbsp; Unbilled: <b class="mono">'+fmt(s.unbilledDue)+'</b>'
     : 'Current outstanding: <b class="mono">'+fmt(s.overall)+'</b>';
-  showModal('<h3>Record payment · '+esc(c.name)+'</h3>'+
+  showModal('<h3>Record Payment · '+esc(c.name)+'</h3>'+
     '<p class="hint" style="margin-top:-8px">'+ctx+'</p>'+
     '<div class="row2"><div class="field"><label>Date</label><input id="p_date" type="date" value="'+today+'"></div>'+
     '<div class="field"><label>Amount paid</label><input id="p_amt" type="number" value="" placeholder="0"></div></div>'+
@@ -1309,7 +1341,7 @@ function openSettings(){
   showModal('<h3>Settings</h3>'+
     '<div class="field"><label>Currency</label><select id="s_cur">'+Object.keys(CURR).map(k=>'<option value="'+k+'"'+(cfg.currency===k?' selected':'')+'>'+k+' ('+CURR[k].trim()+')</option>').join('')+'</select></div>'+
     '<div class="field"><label>Google Client ID (for Drive sync)</label><input id="s_cid" value="'+esc(cfg.clientId)+'" placeholder="xxxx.apps.googleusercontent.com"><div class="hint">Paste the OAuth client ID from your Google Cloud project. Needed once, per the setup guide.</div></div>'+
-    '<div class="hint" style="margin-bottom:4px">Budgets and categories now live in the <b>Budget &amp; categories</b> tab.</div>'+
+    '<div class="hint" style="margin-bottom:4px">Budgets and categories now live in the <b>Budget &amp; Categories</b> tab.</div>'+
     '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="s_save">Save</button></div></div>');
   document.getElementById('s_save').onclick=()=>{
     cfg.currency=document.getElementById('s_cur').value;
@@ -1320,7 +1352,7 @@ function openSettings(){
 }
 
 function openData(){
-  showModal('<h3>Data &amp; backup</h3>'+
+  showModal('<h3>Data &amp; Backup</h3>'+
     '<div class="field"><button class="btn" style="width:100%" id="d_json">⬇ Export full backup (JSON)</button><div class="hint">Everything. Use to restore or move devices.</div></div>'+
     '<div class="field"><button class="btn" style="width:100%" id="d_csv">⬇ Export this period as CSV</button><div class="hint">'+periodRange().label+' — opens in Excel/Sheets.</div></div>'+
     '<div class="field"><button class="btn" style="width:100%" id="d_pdf">🖨 Print / Save as PDF</button><div class="hint">Uses your browser print dialog.</div></div>'+
@@ -1328,7 +1360,7 @@ function openData(){
     '<div class="field"><label>Import backup (JSON)</label><input type="file" id="d_impj" accept=".json"></div>'+
     '<div class="field"><label>Import statement (CSV)</label><input type="file" id="d_impc" accept=".csv"><div class="hint">You\'ll map the date / amount / description columns next.</div></div>'+
     '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
-    '<div class="field"><button class="btn ghost danger" style="width:100%;border:1px solid var(--line)" id="d_clear">🗑 Clear all data</button><div class="hint">Wipes every card, transaction, payment and budget on this device (and in Drive if synced). Export a backup first if unsure.</div></div>'+
+    '<div class="field"><button class="btn ghost danger" style="width:100%;border:1px solid var(--line)" id="d_clear">🗑 Clear All Data</button><div class="hint">Wipes every card, transaction, payment and budget on this device (and in Drive if synced). Export a backup first if unsure.</div></div>'+
     '<div class="modal-actions"><span></span><button class="btn" onclick="closeModal()">Close</button></div>');
   document.getElementById('d_json').onclick=exportJSON;
   document.getElementById('d_csv').onclick=exportCSV;
@@ -1393,7 +1425,7 @@ function parseCSVmap(text){
   const guess=(names)=>{const i=head.findIndex(h=>names.some(n=>(h||'').toLowerCase().includes(n)));return i<0?0:i;};
   const cardOpts=activeCards().map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
   const catOpts=(db.settings.categories||[]).map(c=>'<option>'+esc(c)+'</option>').join('');
-  showModal('<h3>Import statement · map columns</h3><p class="hint" style="margin-top:-8px">'+(rows.length-1)+' rows found. Match each column, then preview.</p>'+
+  showModal('<h3>Import Statement · Map Columns</h3><p class="hint" style="margin-top:-8px">'+(rows.length-1)+' rows found. Match each column, then preview.</p>'+
     '<div class="field"><label>Date column</label><select id="m_date">'+opts+'</select></div>'+
     '<div class="field"><label>Amount column</label><select id="m_amt">'+opts+'</select></div>'+
     '<div class="field"><label>Description column</label><select id="m_desc">'+opts+'</select></div>'+
@@ -1431,9 +1463,9 @@ function csvPreview(dataRows,map){
     '<td>'+esc(it.merch||'—')+(it.dup?' <span class="dupflag">dup</span>':'')+'</td>'+
     '<td>'+esc(it.cat)+'</td>'+
     '<td class="amt">'+fmt(it.amt)+'</td></tr>').join('');
-  showModal('<h3>Preview import</h3><p class="hint" style="margin-top:-8px">'+items.length+' rows · '+dupCount+' likely duplicate'+(dupCount!==1?'s':'')+' unchecked. Review, then import.</p>'+
+  showModal('<h3>Preview Import</h3><p class="hint" style="margin-top:-8px">'+items.length+' rows · '+dupCount+' likely duplicate'+(dupCount!==1?'s':'')+' unchecked. Review, then import.</p>'+
     '<div class="csv-preview"><table class="csv-table"><thead><tr><th></th><th>Date</th><th>Merchant</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
-    '<div class="modal-actions"><button class="btn ghost sm" id="csv_all">Toggle all</button><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="csv_import">Import selected</button></div></div>');
+    '<div class="modal-actions"><button class="btn ghost sm" id="csv_all">Toggle All</button><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="csv_import">Import Selected</button></div></div>');
   document.getElementById('csv_all').onclick=()=>{const boxes=[].slice.call(document.querySelectorAll('.csv-inc'));const anyOff=boxes.some(b=>!b.checked);boxes.forEach(b=>b.checked=anyOff);};
   document.getElementById('csv_import').onclick=()=>{
     let added=0;
@@ -1461,7 +1493,6 @@ function loadSample(){
 }
 
 /* ---------- wire up ---------- */
-document.getElementById('btnCard').onclick=()=>openCard();
 document.getElementById('btnTxn').onclick=()=>openTxn();
 document.getElementById('btnSettings').onclick=openSettings;
 document.getElementById('btnData').onclick=openData;
