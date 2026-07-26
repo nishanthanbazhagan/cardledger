@@ -60,6 +60,7 @@
   .dot{width:7px;height:7px;border-radius:50%}
   .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
   .pill.good{background:#e7f4f1;color:var(--good)} .pill.caution{background:#fbf1d8;color:#a97705} .pill.over{background:#fbe4e4;color:var(--over)}
+  .pill.mut{background:var(--paper);color:var(--slate)}
   .track{height:6px;background:var(--paper);border-radius:6px;margin-top:9px;overflow:hidden}
   .fill{height:100%;border-radius:6px;transition:width .3s}
 
@@ -501,30 +502,63 @@ function tile(color,k,v,sub,bar){
     (bar?'<div class="track"><div class="fill" style="width:'+bar.pct+'%;background:var(--'+bar.cls+')"></div></div>':'')+'</div>';
 }
 
+function ordinal(n){if(!n)return '';const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function cardStats(c){
+  const today=new Date();today.setHours(0,0,0,0);
+  const txns=db.txns.filter(t=>t.cardId===c.id);
+  const pays=db.payments.filter(p=>p.cardId===c.id);
+  const totalCharges=txns.reduce((s,t)=>s+t.amount,0);
+  const totalPaid=pays.reduce((s,p)=>s+p.amount,0);
+  const overall=Math.max(0,totalCharges-totalPaid);
+  const pct=c.limit?Math.round(overall/c.limit*100):0;
+  let lastStmt=null,dueDate=null,daysToDue=null,overdue=false,overdueDays=0;
+  let billedCharges=totalCharges,unbilledCharges=0,cycleAware=false;
+  if(c.stmtDay){
+    cycleAware=true;
+    lastStmt=new Date(today.getFullYear(),today.getMonth(),c.stmtDay);
+    if(lastStmt>today)lastStmt=new Date(today.getFullYear(),today.getMonth()-1,c.stmtDay);
+    billedCharges=0;unbilledCharges=0;
+    txns.forEach(t=>{const d=new Date(t.date);d.setHours(0,0,0,0);if(d<=lastStmt)billedCharges+=t.amount;else unbilledCharges+=t.amount;});
+    if(c.dueDay){
+      dueDate=new Date(lastStmt.getFullYear(),lastStmt.getMonth(),c.dueDay);
+      if(dueDate<=lastStmt)dueDate=new Date(lastStmt.getFullYear(),lastStmt.getMonth()+1,c.dueDay);
+      daysToDue=Math.ceil((dueDate-today)/86400000);
+    }
+  }
+  const stmtPay=pays.filter(p=>(p.scope||'statement')==='statement').reduce((s,p)=>s+p.amount,0);
+  const balPay=pays.filter(p=>p.scope==='balance').reduce((s,p)=>s+p.amount,0);
+  let billedDue=Math.max(0,billedCharges-stmtPay);
+  let unbilledDue=Math.max(0,unbilledCharges-balPay);
+  const stmtOver=Math.max(0,stmtPay-billedCharges);unbilledDue=Math.max(0,unbilledDue-stmtOver);
+  const balOver=Math.max(0,balPay-unbilledCharges);billedDue=Math.max(0,billedDue-balOver);
+  if(dueDate&&billedDue>0&&today>dueDate){overdue=true;overdueDays=Math.ceil((today-dueDate)/86400000);}
+  return {overall,pct,billedDue,unbilledDue,billedCharges,unbilledCharges,dueDate,daysToDue,overdue,overdueDays,cycleAware};
+}
+function dueChip(c,s){
+  if(c.status==='closed'||!s.cycleAware||!s.dueDate)return '';
+  if(s.billedDue<=0)return '<span class="pill good" style="margin-top:5px;display:inline-block">'+(s.billedCharges<=0?'Nothing due':'Statement clear')+'</span>';
+  if(s.overdue)return '<span class="pill over" style="margin-top:5px;display:inline-block">Overdue '+s.overdueDays+'d</span>';
+  const cls=s.daysToDue<=3?'caution':'mut';
+  return '<span class="pill '+cls+'" style="margin-top:5px;display:inline-block">Due in '+s.daysToDue+'d</span>';
+}
 function cardsHTML(){
   const rows=db.cards.slice().sort((a,b)=>(a.status==='closed')-(b.status==='closed')).map(c=>{
-    const out=cardOutstanding(c.id), pct=c.limit?Math.round(out/c.limit*100):0;
-    const cls=pct>=70?'over':pct>=30?'caution':'good';
-    const due=dueInfo(c);
+    const s=cardStats(c);
+    const cls=s.pct>=70?'over':s.pct>=30?'caution':'good';
+    const stmtLine=c.stmtDay?' · stmt '+ordinal(c.stmtDay):'';
     return '<div class="crow">'+
       '<div class="cname"><span class="chip" style="background:'+(c.color||'#23405C')+'"></span>'+
         '<div><b>'+esc(c.name)+(c.status==='closed'?'<span class="closed-badge">Closed</span>':'')+'</b>'+
-        '<small>•• '+esc(c.last4||'----')+(due?' · '+due:'')+'</small></div></div>'+
+        '<small>•• '+esc(c.last4||'----')+stmtLine+'</small>'+dueChip(c,s)+'</div></div>'+
       '<div class="u-lim"><div class="cell-lab">Limit</div><div class="mono" style="font-size:13px">'+fmt(c.limit)+'</div></div>'+
-      '<div class="u-out"><div class="cell-lab">Outstanding</div><div class="mono" style="font-size:13px">'+fmt(out)+'</div></div>'+
-      '<div class="util"><div class="track"><div class="fill" style="width:'+Math.min(100,pct)+'%;background:var(--'+cls+')"></div></div><span class="num">'+pct+'%</span></div>'+
+      '<div class="u-out"><div class="cell-lab">'+(s.cycleAware?'Due now / Unbilled':'Outstanding')+'</div>'+
+        '<div class="mono" style="font-size:13px">'+fmt(s.billedDue)+(s.cycleAware?' <span style="color:var(--slate);font-weight:400">/ '+fmt(s.unbilledDue)+'</span>':'')+'</div></div>'+
+      '<div class="util"><div class="track"><div class="fill" style="width:'+Math.min(100,s.pct)+'%;background:var(--'+cls+')"></div></div><span class="num">'+s.pct+'%</span></div>'+
       '<div style="white-space:nowrap"><button class="rowbtn" data-pay="'+c.id+'" title="Record payment">₹✓</button>'+
       '<button class="rowbtn" data-editc="'+c.id+'" title="Edit">✎</button></div>'+
       '</div>';
   }).join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Your cards <span class="muted">✎ edit · ₹✓ record payment</span></h2><div style="margin-top:4px">'+rows+'</div></div>';
-}
-function dueInfo(c){
-  if(!c.dueDay)return '';
-  const today=new Date(); let due=new Date(today.getFullYear(),today.getMonth(),c.dueDay);
-  if(due<today)due=new Date(today.getFullYear(),today.getMonth()+1,c.dueDay);
-  const days=Math.ceil((due-today)/86400000);
-  return c.status==='closed'?'':'due in '+days+'d';
+  return '<div class="card" style="margin-bottom:13px"><h2>Your cards <span class="muted">Due now = current statement · Unbilled = since last statement</span></h2><div style="margin-top:4px">'+rows+'</div></div>';
 }
 
 function chartsHTML(){
@@ -704,15 +738,34 @@ function delTxn(id){
 
 function openPayment(cardId){
   const c=db.cards.find(x=>x.id===cardId);
+  const s=cardStats(c);
   const today=new Date().toISOString().slice(0,10);
+  const ctx=s.cycleAware
+    ? 'Due now (this statement): <b class="mono">'+fmt(s.billedDue)+'</b> &nbsp;·&nbsp; Unbilled: <b class="mono">'+fmt(s.unbilledDue)+'</b>'
+    : 'Current outstanding: <b class="mono">'+fmt(s.overall)+'</b>';
   showModal('<h3>Record payment · '+esc(c.name)+'</h3>'+
-    '<p class="hint" style="margin-top:-8px">Current outstanding: '+fmt(cardOutstanding(cardId))+'</p>'+
+    '<p class="hint" style="margin-top:-8px">'+ctx+'</p>'+
     '<div class="row2"><div class="field"><label>Date</label><input id="p_date" type="date" value="'+today+'"></div>'+
     '<div class="field"><label>Amount paid</label><input id="p_amt" type="number" value="" placeholder="0"></div></div>'+
+    (s.cycleAware?'<div class="field"><label>Apply to</label>'+
+      '<div class="seg" id="p_scope" style="width:100%"><button type="button" data-sc="statement" aria-pressed="true" style="flex:1">Current statement</button>'+
+      '<button type="button" data-sc="balance" aria-pressed="false" style="flex:1">Just reduce balance</button></div>'+
+      '<div class="hint" id="p_scopehint">Pays down the amount due on your current statement.</div></div>':'')+
     '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="p_save">Save</button></div></div>');
+  let scope='statement';
+  if(s.cycleAware){
+    document.querySelectorAll('#p_scope button').forEach(b=>b.onclick=()=>{
+      scope=b.dataset.sc;
+      document.querySelectorAll('#p_scope button').forEach(x=>x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+      document.getElementById('p_scopehint').textContent=scope==='statement'
+        ?'Pays down the amount due on your current statement.'
+        :'Reduces your overall balance (applied to unbilled spends first).';
+    });
+  }
   document.getElementById('p_save').onclick=()=>{
     const amt=+document.getElementById('p_amt').value;if(!amt||amt<=0)return toast('Enter an amount');
-    db.payments.push({id:uid(),cardId,date:document.getElementById('p_date').value,amount:amt,updatedAt:now()});
+    db.payments.push({id:uid(),cardId,date:document.getElementById('p_date').value,amount:amt,scope,updatedAt:now()});
     closeModal();persist();toast('Payment recorded');
   };
 }
