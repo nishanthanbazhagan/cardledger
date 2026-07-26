@@ -132,6 +132,17 @@
     .crow{grid-template-columns:1.4fr 1fr auto;row-gap:6px}
     .crow .u-lim,.crow .u-out{display:none}
   }
+  .tabs{display:flex;gap:4px;margin:2px 0 13px;border-bottom:1px solid var(--line)}
+  .tab{border:0;background:transparent;font-family:'Space Grotesk';font-weight:600;font-size:14px;color:var(--slate);padding:9px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab[aria-pressed="true"]{color:var(--brand);border-bottom-color:var(--brand)}
+  .budgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:14px}
+  .catrow{display:grid;grid-template-columns:1.4fr .9fr auto auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+  .catrow:first-of-type{border-top:0}
+  .catrow .cbud{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;width:100%}
+  .catname{font-weight:500;font-size:13.5px;display:flex;align-items:center;gap:9px}
+  .addcat{display:flex;gap:8px;margin-top:14px}
+  .addcat input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px}
+  @media (max-width:860px){.budgrid{grid-template-columns:1fr}.catrow{grid-template-columns:1.3fr .8fr auto}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
   @media print{.actions,.lens .seg,.arrow,.toolbar,.rowbtn,header .synbar{display:none!important}}
 </style>
@@ -153,7 +164,12 @@
     </div>
   </header>
 
-  <div class="lens">
+  <div class="tabs" id="tabs">
+    <button class="tab" data-s="dashboard" aria-pressed="true">Dashboard</button>
+    <button class="tab" data-s="budget" aria-pressed="false">Budget &amp; categories</button>
+  </div>
+
+  <div class="lens" id="lensBar">
     <div style="display:flex;align-items:center;gap:13px;flex-wrap:wrap">
       <span class="label">View by</span>
       <div class="seg" role="group" aria-label="Period type" id="segLens">
@@ -192,6 +208,7 @@ const CURR={INR:'₹',USD:'$',EUR:'€',GBP:'£',AED:'AED '};
 let db=blankDB();
 let cfg={clientId:'',currency:'INR'};
 let view={type:'month',anchor:new Date()};
+let screen='dashboard';
 let charts={};
 let accessToken=null, tokenClient=null, driveFileId=null, syncing=false;
 
@@ -373,12 +390,75 @@ async function pushToDrive(){
 function render(){
   buildCatColors();
   document.getElementById('curMark').textContent=sym().trim()||'₹';
-  document.getElementById('periodLabel').textContent=periodRange().label;
+  document.querySelectorAll('#tabs .tab').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===screen?'true':'false'));
+  document.getElementById('lensBar').style.display=(screen==='dashboard')?'':'none';
   const app=document.getElementById('app');
+  if(screen==='budget'){renderBudget();return;}
+  document.getElementById('periodLabel').textContent=periodRange().label;
   if(db.cards.length===0){ app.innerHTML=emptyState(); wireEmpty(); return; }
   app.innerHTML = tilesHTML()+cardsHTML()+chartsHTML()+budgetHTML()+txnHTML();
   drawCharts();
   wireTxnTable();
+}
+
+function renderBudget(){
+  const app=document.getElementById('app');
+  const b=db.budget;
+  const mSpend={}, r=(function(){const s=new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1);return {start:s,end:new Date(view.anchor.getFullYear(),view.anchor.getMonth()+1,1)};})();
+  db.txns.filter(t=>inPeriod(t.date,r)).forEach(t=>mSpend[t.category]=(mSpend[t.category]||0)+t.amount);
+  const totalSpend=Object.values(mSpend).reduce((a,c)=>a+c,0);
+  const totalPct=b.total?Math.round(totalSpend/b.total*100):0;
+  const cls=totalPct>=(b.over||100)?'over':totalPct>=(b.warn||80)?'caution':'good';
+  app.innerHTML=
+    '<div class="card" style="margin-bottom:13px"><h2>Monthly budget <span class="muted">applies to each month; quarter/half/year scale automatically</span></h2>'+
+      '<div class="budgrid" style="margin-top:10px">'+
+        '<div><label class="cell-lab">Total monthly budget</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="150000"></div>'+
+        '<div><label class="cell-lab">Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
+        '<div><label class="cell-lab">Over at %</label><input id="b_over" class="cbud" type="number" value="'+(b.over||100)+'"></div>'+
+      '</div>'+
+      (b.total?'<div class="track" style="height:9px"><div class="fill" style="width:'+Math.min(100,totalPct)+'%;background:var(--'+cls+')"></div></div>'+
+        '<div class="sub" style="font-size:12.5px;color:var(--slate);margin-top:7px">This month so far: <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' &nbsp;·&nbsp; <span class="pill '+cls+'">'+totalPct+'%</span></div>':'')+
+    '</div>'+
+    '<div class="card"><h2>Categories &amp; per-category budgets <span class="muted">✕ removes from dropdowns · past entries keep their label</span></h2>'+
+      '<div style="margin-top:6px">'+
+      '<div class="catrow" style="border:0;color:var(--slate)"><div class="cell-lab">Category</div><div class="cell-lab">Monthly budget</div><div class="cell-lab" style="text-align:right">Spent (this month)</div><div></div></div>'+
+      (db.settings.categories||[]).map(c=>{
+        const bg=b.categories[c]||0, sp=mSpend[c]||0, over=bg&&sp>bg;
+        return '<div class="catrow"><div class="catname"><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+'</div>'+
+          '<div><input class="cbud b_cat" data-cat="'+esc(c)+'" type="number" value="'+(bg||'')+'" placeholder="no limit"></div>'+
+          '<div class="mono" style="text-align:right;font-size:13px;color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(sp)+'</div>'+
+          '<div style="text-align:right"><button class="rowbtn danger" data-rmcat="'+esc(c)+'" title="Remove category">✕</button></div></div>';
+      }).join('')+
+      '<div class="addcat"><input id="b_newcat" placeholder="Add a category (e.g. Insurance, Rent)"><button class="btn" id="b_addcat">+ Add category</button></div>'+
+      '</div></div>';
+  // wire
+  const commitNums=()=>{
+    db.budget.total=+document.getElementById('b_total').value||0;
+    db.budget.warn=+document.getElementById('b_warn').value||80;
+    db.budget.over=+document.getElementById('b_over').value||100;
+    document.querySelectorAll('.b_cat').forEach(i=>{const v=+i.value;if(v)db.budget.categories[i.dataset.cat]=v;else delete db.budget.categories[i.dataset.cat];});
+    saveLocal(); if(accessToken) scheduleSync();
+  };
+  ['b_total','b_warn','b_over'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{commitNums();render();}));
+  document.querySelectorAll('.b_cat').forEach(i=>i.addEventListener('change',()=>{commitNums();render();}));
+  document.querySelectorAll('[data-rmcat]').forEach(btn=>btn.onclick=()=>{
+    commitNums();
+    const name=btn.dataset.rmcat;
+    if(db.txns.some(t=>t.category===name)&&!confirm('"'+name+'" is used by existing transactions. Remove it from the list anyway? Past transactions keep their label.'))return;
+    db.settings.categories=(db.settings.categories||[]).filter(x=>x!==name);
+    delete db.budget.categories[name];
+    CATCOLORS_ready=false; persist();
+  });
+  const addCat=()=>{
+    commitNums();
+    const inp=document.getElementById('b_newcat'), v=inp.value.trim();
+    if(!v)return;
+    if((db.settings.categories||[]).some(c=>c.toLowerCase()===v.toLowerCase()))return toast('Category already exists');
+    db.settings.categories=(db.settings.categories||[]).concat(v);
+    CATCOLORS_ready=false; persist();
+  };
+  document.getElementById('b_addcat').onclick=addCat;
+  document.getElementById('b_newcat').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCat();}});
 }
 
 function emptyState(){
@@ -640,21 +720,13 @@ function openPayment(cardId){
 function openSettings(){
   showModal('<h3>Settings</h3>'+
     '<div class="field"><label>Currency</label><select id="s_cur">'+Object.keys(CURR).map(k=>'<option value="'+k+'"'+(cfg.currency===k?' selected':'')+'>'+k+' ('+CURR[k].trim()+')</option>').join('')+'</select></div>'+
-    '<div class="field"><label>Monthly total budget</label><input id="s_bud" type="number" value="'+(db.budget.total||'')+'"></div>'+
-    '<div class="row2"><div class="field"><label>Warn at %</label><input id="s_warn" type="number" value="'+(db.budget.warn||80)+'"></div>'+
-    '<div class="field"><label>Over at %</label><input id="s_over" type="number" value="'+(db.budget.over||100)+'"></div></div>'+
-    '<div class="field"><label>Per-category monthly budgets</label>'+
-      (db.settings.categories||[]).map(c=>'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="flex:1;font-size:12.5px">'+esc(c)+'</span><input class="inp catbud" data-cat="'+esc(c)+'" type="number" style="width:120px" value="'+(db.budget.categories[c]||'')+'"></div>').join('')+'</div>'+
     '<div class="field"><label>Google Client ID (for Drive sync)</label><input id="s_cid" value="'+esc(cfg.clientId)+'" placeholder="xxxx.apps.googleusercontent.com"><div class="hint">Paste the OAuth client ID from your Google Cloud project. Needed once, per the setup guide.</div></div>'+
+    '<div class="hint" style="margin-bottom:4px">Budgets and categories now live in the <b>Budget &amp; categories</b> tab.</div>'+
     '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="s_save">Save</button></div></div>');
   document.getElementById('s_save').onclick=()=>{
     cfg.currency=document.getElementById('s_cur').value;
     cfg.clientId=document.getElementById('s_cid').value.trim();
     db.settings.currency=cfg.currency;
-    db.budget.total=+document.getElementById('s_bud').value||0;
-    db.budget.warn=+document.getElementById('s_warn').value||80;
-    db.budget.over=+document.getElementById('s_over').value||100;
-    document.querySelectorAll('.catbud').forEach(i=>{const v=+i.value;if(v)db.budget.categories[i.dataset.cat]=v;else delete db.budget.categories[i.dataset.cat];});
     tokenClient=null; saveCfg();closeModal();persist();toast('Settings saved');
   };
 }
@@ -783,6 +855,7 @@ document.getElementById('btnTxn').onclick=()=>openTxn();
 document.getElementById('btnSettings').onclick=openSettings;
 document.getElementById('btnData').onclick=openData;
 document.getElementById('btnSync').onclick=connectDrive;
+document.querySelectorAll('#tabs .tab').forEach(b=>b.onclick=()=>{screen=b.dataset.s;render();});
 document.getElementById('segLens').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   view.type=b.dataset.t;
   document.querySelectorAll('#segLens button').forEach(x=>x.setAttribute('aria-pressed','false'));
