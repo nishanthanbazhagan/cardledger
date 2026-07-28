@@ -234,6 +234,14 @@
     background:var(--brand-soft);color:var(--brand);letter-spacing:.01em}
   .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.55;flex:none}
   .cardref{font-family:'JetBrains Mono';font-size:var(--fs-xs);color:var(--slate)}
+  #txBody tr[data-txid]{cursor:pointer}
+  .tx-amt{font-size:30px;font-weight:700;color:var(--ink);letter-spacing:-.02em;text-align:center;margin:0 0 8px}
+  .tx-cat{text-align:center;margin-bottom:10px}
+  .dl-list{margin-top:4px}
+  .dl{display:flex;justify-content:space-between;gap:16px;align-items:baseline;padding:11px 0;border-top:1px solid var(--line);font-size:var(--fs-sm)}
+  .dl span{color:var(--slate);flex:none}
+  .dl b{color:var(--ink);font-weight:600;text-align:right;word-break:break-word}
+  .dl .minitag{margin-left:4px}
   .rowbtn{border:1px solid transparent;background:transparent;cursor:pointer;color:var(--slate);font-size:14px;
     padding:5px 8px;border-radius:var(--r-sm);transition:background .14s var(--ease),color .14s var(--ease)}
   .rowbtn:hover{background:var(--paper);color:var(--ink);border-color:var(--line)}
@@ -1261,7 +1269,7 @@ function txnHTML(){
     '<div class="toolbar"><input class="inp" id="txQ" placeholder="Search merchant / note" value="'+esc(txFilter.q)+'" style="width:160px">'+
     '<select class="inp" id="txCard">'+cardOpts+'</select>'+
     '<select class="inp" id="txCat">'+cats+'</select></div></h2>'+
-    '<table><thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Card</th><th style="text-align:right">Amount</th><th></th></tr></thead>'+
+    '<table><thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Card</th><th style="text-align:right">Amount</th></tr></thead>'+
     '<tbody id="txBody"></tbody></table></div>';
 }
 function renderTxRows(){
@@ -1272,19 +1280,17 @@ function renderTxRows(){
   if(txFilter.q){const q=txFilter.q.toLowerCase();list=list.filter(t=>(t.merchant||'').toLowerCase().includes(q)||(t.note||'').toLowerCase().includes(q)||(t.tags||'').toLowerCase().includes(q));}
   list.sort((a,b)=>pdate(b.date)-pdate(a.date));
   const body=document.getElementById('txBody');
-  if(!list.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--slate);padding:24px">No transactions in this period / filter.</td></tr>';return;}
+  if(!list.length){body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--slate);padding:24px">No transactions in this period / filter.</td></tr>';return;}
   body.innerHTML=list.map(t=>{
     const c=db.cards.find(x=>x.id===t.cardId);
     const d=pdate(t.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
     const tags=(t.tags||'').split(',').map(s=>s.trim()).filter(Boolean).map(x=>'<span class="minitag">'+esc(x)+'</span>').join('');
-    return '<tr><td>'+d+'</td><td style="font-weight:500">'+esc(t.merchant||'—')+tags+'</td>'+
+    return '<tr data-txid="'+t.id+'"><td>'+d+'</td><td style="font-weight:500">'+esc(t.merchant||'—')+tags+'</td>'+
       '<td><span class="tag">'+esc(t.category)+'</span></td>'+
       '<td class="cardref">'+(c?esc(c.name)+' •• '+esc(c.last4||''):'—')+'</td>'+
-      '<td class="amt">'+fmt(t.amount)+'</td>'+
-      '<td style="text-align:right;white-space:nowrap"><button class="rowbtn" data-editt="'+t.id+'">✎</button><button class="rowbtn danger" data-delt="'+t.id+'">🗑</button></td></tr>';
+      '<td class="amt">'+fmt(t.amount)+'</td></tr>';
   }).join('');
-  body.querySelectorAll('[data-editt]').forEach(b=>b.onclick=()=>openTxn(b.dataset.editt));
-  body.querySelectorAll('[data-delt]').forEach(b=>b.onclick=()=>delTxn(b.dataset.delt));
+  body.querySelectorAll('[data-txid]').forEach(tr=>tr.onclick=()=>openTxnDetail(tr.dataset.txid));
 }
 function wireTxnTable(){
   renderTxRows();
@@ -1415,7 +1421,7 @@ function openTxn(id){
     '<div class="field"><label>Category</label><select id="t_cat">'+catOpts+'</select></div></div>'+
     '<div class="field"><label>Tags (comma separated, optional)</label><input id="t_tags" value="'+esc(t?t.tags:'')+'" placeholder="reimbursable, EMI"></div>'+
     '<div class="field"><label>Note (optional)</label><input id="t_note" value="'+esc(t?t.note:'')+'"></div>'+
-    '<div class="modal-actions">'+(t?'<button class="btn ghost danger" id="t_del">Delete</button>':'<span></span>')+
+    '<div class="modal-actions"><span></span>'+
     '<div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="t_save">Save</button></div></div>');
   document.getElementById('t_save').onclick=()=>{
     clearErrors();
@@ -1428,7 +1434,6 @@ function openTxn(id){
     if(t)Object.assign(t,obj);else db.txns.push(obj);
     closeModal();persist();toast('Spend saved');
   };
-  if(t)document.getElementById('t_del').onclick=()=>delTxn(t.id);
 }
 function confirmModal(msg,onYes,yesLabel){
   showModal('<h3>Please confirm</h3>'+
@@ -1443,6 +1448,26 @@ function delTxn(id){
     db.txns=db.txns.filter(x=>x.id!==id);db.tombstones.txns[id]=now();
     persist();toast('Transaction deleted');
   });
+}
+function openTxnDetail(id){
+  const t=db.txns.find(x=>x.id===id); if(!t)return;
+  const c=db.cards.find(x=>x.id===t.cardId);
+  const tags=(t.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const dl=(l,v)=>'<div class="dl"><span>'+l+'</span><b>'+v+'</b></div>';
+  showModal('<h3>Transaction</h3>'+
+    '<div class="tx-amt mono">'+fmt(t.amount)+'</div>'+
+    '<div class="tx-cat"><span class="tag">'+esc(t.category)+'</span></div>'+
+    '<div class="dl-list">'+
+      dl('Date', pdate(t.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}))+
+      dl('Merchant', esc(t.merchant||'—'))+
+      dl('Card', c?esc(c.name)+' •• '+esc(c.last4||''):'—')+
+      (tags.length?dl('Tags', tags.map(x=>'<span class="minitag">'+esc(x)+'</span>').join(' ')):'')+
+      (t.note?dl('Note', esc(t.note)):'')+
+    '</div>'+
+    '<div class="modal-actions"><button class="btn ghost danger" id="d_del">Delete</button>'+
+    '<div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Close</button><button class="btn primary" id="d_edit">Edit</button></div></div>');
+  document.getElementById('d_edit').onclick=()=>openTxn(id);
+  document.getElementById('d_del').onclick=()=>delTxn(id);
 }
 function deleteCard(id){
   const c=db.cards.find(x=>x.id===id);if(!c)return;
