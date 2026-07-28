@@ -544,6 +544,7 @@
 /* ---------- constants ---------- */
 const LS_KEY='cardledger:v1';
 const CFG_KEY='cardledger:cfg';
+const TOK_KEY='cardledger:tok';
 const DRIVE_FILE='cardledger-data.json';
 const SCOPE='https://www.googleapis.com/auth/drive.file';
 const PALETTE=['#23405C','#10897B','#B5651D','#7A5EA6','#C0546B','#3E7CB1','#D89216','#5B8C5A','#8A8D91','#485696'];
@@ -745,27 +746,54 @@ function setSyn(state,text){
   dot.className='syndot'+(state==='on'?' on':state==='busy'?' busy':'');
   document.getElementById('synText').textContent=text;
 }
+function saveToken(resp){
+  try{const exp=Date.now()+((resp&&resp.expires_in?resp.expires_in:3300)*1000);
+    localStorage.setItem(TOK_KEY,JSON.stringify({t:accessToken,e:exp}));}catch(e){}
+  cfg.driveConnected=true;saveCfg();
+}
 function ensureTokenClient(){
   if(!cfg.clientId){toast('Add your Google Client ID in Settings first');openSettings();return false;}
   if(!window.google||!google.accounts||!google.accounts.oauth2){toast('Google library still loading — try again in a moment');return false;}
   if(!tokenClient){
     tokenClient=google.accounts.oauth2.initTokenClient({
       client_id:cfg.clientId, scope:SCOPE,
-      callback:(resp)=>{ if(resp&&resp.access_token){accessToken=resp.access_token; if(tokenClient._resolve)tokenClient._resolve();} else if(tokenClient._reject) tokenClient._reject(resp);}
+      callback:(resp)=>{ if(resp&&resp.access_token){accessToken=resp.access_token;saveToken(resp);if(tokenClient._resolve)tokenClient._resolve(resp);} else if(tokenClient._reject) tokenClient._reject(resp);},
+      error_callback:(err)=>{ if(tokenClient._reject)tokenClient._reject(err); }
     });
   }
   return true;
 }
-function requestToken(interactive){
+function requestToken(prompt){
   return new Promise((res,rej)=>{
     if(!ensureTokenClient())return rej('no-client');
     tokenClient._resolve=res; tokenClient._reject=rej;
-    tokenClient.requestAccessToken({prompt:interactive?'consent':''});
+    tokenClient.requestAccessToken({prompt:prompt||''});
   });
 }
 async function connectDrive(){
-  try{ setSyn('busy','Connecting…'); await requestToken(true); await fullSync(); setSyn('on','Drive synced'); toast('Connected to Google Drive'); }
-  catch(e){ setSyn('','Local only'); toast('Drive connection cancelled'); }
+  if(!ensureTokenClient())return;
+  setSyn('busy','Connecting…');
+  try{ await requestToken(''); }                 // silent when already granted (no popup)
+  catch(e){ setSyn('','Local only'); toast('Drive connection cancelled'); return; }
+  try{ await fullSync(); setSyn('on','Drive synced'); toast('Connected to Google Drive'); }
+  catch(e){ setSyn('on','Saved locally · will retry'); }
+}
+async function autoReconnect(){
+  // reuse a still-valid stored token so a refresh stays connected (no popup)
+  try{
+    const raw=localStorage.getItem(TOK_KEY);
+    if(raw){const o=JSON.parse(raw);
+      if(o&&o.t&&o.e&&o.e>Date.now()+30000){accessToken=o.t;setSyn('on','Drive synced');
+        try{await fullSync();}catch(e){accessToken=null;setSyn('','Local only');}
+        return;}}
+  }catch(e){}
+  // token missing/expired: try a silent refresh only if user connected before (no popup if session valid)
+  if(cfg.driveConnected&&cfg.clientId){
+    const wait=()=>new Promise(r=>{let n=0;const id=setInterval(()=>{if((window.google&&google.accounts&&google.accounts.oauth2)||n++>40){clearInterval(id);r();}},100);});
+    await wait();
+    try{ await requestToken(''); setSyn('on','Drive synced'); await fullSync(); }
+    catch(e){ setSyn('','Local only'); }
+  }
 }
 async function driveHeaders(){return {Authorization:'Bearer '+accessToken};}
 async function driveFind(){
@@ -819,7 +847,7 @@ async function pushToDrive(){
     setSyn('on','Drive synced'); render();
   }catch(e){
     const msg=''+e;
-    if(/\b401\b/.test(msg)){accessToken=null;setSyn('','Sign-in expired');toast('Google sign-in expired — tap Connect Drive');}
+    if(/\b401\b/.test(msg)){accessToken=null;try{localStorage.removeItem(TOK_KEY);}catch(e){}setSyn('','Sign-in expired');toast('Google sign-in expired — tap Connect Drive');}
     else {if(/\b404\b/.test(msg))driveFileId=null; setSyn('on','Saved locally · will retry');}
   }finally{syncing=false;runPending();}
 }
@@ -1526,6 +1554,7 @@ window.closeModal=closeModal;
 loadCfg();loadLocal();
 if(db.settings&&db.settings.currency)cfg.currency=db.settings.currency;
 render();
+autoReconnect();
 </script>
 </body>
 </html>
