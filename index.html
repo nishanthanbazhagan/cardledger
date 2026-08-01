@@ -570,6 +570,20 @@
   .owed-m small{color:var(--slate);font-size:var(--fs-xs)}
   .owed-a{flex:none;font-weight:700;font-size:var(--fs-md);color:var(--good)}
   .owed-more{font-size:11px;color:var(--slate);padding:8px 2px 0}
+  .owed-prog{display:block;font-size:10.5px;color:var(--good);margin-top:2px}
+  .rep-wrap{margin-top:6px;border-top:1px solid var(--line);padding-top:14px}
+  .rep-head{font-size:12px;font-weight:700;color:var(--ink);letter-spacing:.02em;display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .split-status{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:var(--r-pill);padding:2px 9px}
+  .split-status.settled{color:var(--good);background:var(--good-soft)}
+  .split-status.part{color:var(--caution);background:var(--caution-soft)}
+  .split-status.open{color:var(--slate);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+  .rep-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .rep-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm)}
+  .rep-m b{font-size:var(--fs-sm);color:var(--ink)} .rep-m small{display:block;font-size:11px;color:var(--slate)}
+  .rep-del{border:0;background:transparent;color:var(--slate-2);font-size:18px;line-height:1;cursor:pointer;padding:0 4px;border-radius:var(--r-xs)}
+  .rep-del:hover{color:var(--over);background:var(--over-soft)}
+  .rep-empty{font-size:12px;color:var(--slate-2);margin-bottom:10px}
+  .rep-actions{display:flex;gap:8px;flex-wrap:wrap}
   .owed-cap{font-size:11px;color:var(--slate-2);margin:-2px 0 6px}
   .bak-list{display:flex;flex-direction:column;gap:8px;max-height:344px;overflow:auto}
   .bak-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--paper)}
@@ -826,6 +840,15 @@ function normalize(d){
   d=d||{};
   d.cards=Array.isArray(d.cards)?d.cards:[];
   d.txns=Array.isArray(d.txns)?d.txns:[];
+  d.txns.forEach(t=>{
+    if(t&&t.share!=null){
+      if(!Array.isArray(t.repayments))t.repayments=[];
+      const owed=Math.max(0,(+t.amount||0)-(+t.share||0));
+      const rec=t.repayments.reduce((s,r)=>s+(+r.amount||0),0);
+      if(t.settled===true && rec<owed-0.5){ t.repayments.push({id:(t.id||'x')+'-s',amount:+(owed-rec).toFixed(2),date:t.date,note:'settled'}); }
+      delete t.settled;                                   // repayments are now the single source of truth
+    }
+  });
   d.payments=Array.isArray(d.payments)?d.payments:[];
   d.budget=d.budget&&typeof d.budget==='object'?d.budget:{};
   d.budget.total=+d.budget.total||0;
@@ -853,6 +876,10 @@ function cardOutstanding(cardId){
 }
 function periodTxns(){const r=periodRange();return db.txns.filter(t=>inPeriod(t.date,r));}
 function shareOf(t){return (t.share==null)?t.amount:t.share;}   // spending value (your share); card math still uses t.amount
+function owedOf(t){return (t.share==null)?0:Math.max(0,(+t.amount||0)-(+t.share||0));}      // total others owe you
+function recoveredOf(t){return (t.repayments||[]).reduce((s,r)=>s+(+r.amount||0),0);}        // repaid so far
+function outstandingOf(t){return Math.max(0, owedOf(t)-recoveredOf(t));}                     // still owed to you
+function splitStatus(t){if(t.share==null)return null;const o=owedOf(t);if(o<=0.5)return 'settled';const out=outstandingOf(t);return out<=0.5?'settled':(recoveredOf(t)>0.5?'part':'open');}
 
 /* ---------- inline form validation ---------- */
 function clearErrors(){
@@ -1415,17 +1442,18 @@ function bentoRow(a,b){
   return '<div class="'+(items.length===2?'bento-row':'bento-solo')+'">'+items.join('')+'</div>';
 }
 function owedHTML(){
-  const list=db.txns.filter(t=>t.share!=null&&!t.settled&&(t.amount-t.share)>0.005).sort((a,b)=>pdate(b.date)-pdate(a.date));
+  const list=db.txns.filter(t=>t.share!=null&&outstandingOf(t)>0.5).sort((a,b)=>pdate(b.date)-pdate(a.date));
   if(!list.length)return '';
-  const total=list.reduce((s,t)=>s+(t.amount-t.share),0);
+  const total=list.reduce((s,t)=>s+outstandingOf(t),0);
   const rows=list.slice(0,8).map(t=>{
-    const owed=t.amount-t.share;
+    const out=outstandingOf(t), rec=recoveredOf(t), owed=owedOf(t);
+    const prog=rec>0.5?'<small class="owed-prog">'+fmt(rec)+' of '+fmt(owed)+' back</small>':'';
     return '<div class="owed-row" data-oid="'+t.id+'"><span class="owed-ic">↩</span>'+
-      '<div class="owed-m"><b>'+esc(t.merchant||'—')+'</b><small>'+pdate(t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' · you paid '+fmt(t.amount)+'</small></div>'+
-      '<div class="owed-a mono">'+fmt(owed)+'</div></div>';
+      '<div class="owed-m"><b>'+esc(t.merchant||'—')+'</b><small>'+pdate(t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' · you paid '+fmt(t.amount)+'</small>'+prog+'</div>'+
+      '<div class="owed-a mono">'+fmt(out)+'</div></div>';
   }).join('');
   const more=list.length>8?'<div class="owed-more">+'+(list.length-8)+' more</div>':'';
-  return '<div class="card owed-card"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
+  return '<div class="card owed-card"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' open</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
 }
 function recurringHTML(){  const rec=detectRecurring();
   if(!rec.length)return '';
@@ -1530,7 +1558,8 @@ function renderTxRows(){
     const c=db.cards.find(x=>x.id===t.cardId);
     const d=pdate(t.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
     const tags=(t.tags||'').split(',').map(s=>s.trim()).filter(Boolean).map(x=>'<span class="minitag">'+esc(x)+'</span>').join('');
-    const split=t.share!=null?'<span class="splitbadge'+(t.settled?' settled':'')+'">'+(t.settled?'split · settled':'split')+'</span>':'';
+    const st=splitStatus(t);
+    const split=t.share!=null?'<span class="splitbadge'+(st==='settled'?' settled':st==='part'?' part':'')+'">'+(st==='settled'?'split · settled':st==='part'?'split · part':'split')+'</span>':'';
     const amtCell=t.share!=null
       ? '<td class="amt">'+fmt(t.amount)+'<small class="shareline">your '+fmt(t.share)+'</small></td>'
       : '<td class="amt">'+fmt(t.amount)+'</td>';
@@ -1705,7 +1734,7 @@ function openTxn(id){
       merchant:document.getElementById('t_merch').value.trim(),cardId:document.getElementById('t_card').value,
       category:document.getElementById('t_cat').value,tags:document.getElementById('t_tags').value.trim(),
       note:document.getElementById('t_note').value.trim(),
-      share:share,splitN:splitNv,settled:(share!=null?(t&&t.settled?true:false):null),
+      share:share,splitN:splitNv,repayments:(share!=null?((t&&t.repayments)||[]):null),
       updatedAt:now()};
     if(t)Object.assign(t,obj);else db.txns.push(obj);
     closeModal();persist();toast('Spend saved');
@@ -1730,13 +1759,24 @@ function openTxnDetail(id){
   const c=db.cards.find(x=>x.id===t.cardId);
   const tags=(t.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
   const dl=(l,v)=>'<div class="dl"><span>'+l+'</span><b>'+v+'</b></div>';
-  const isSplit=t.share!=null, owed=isSplit?Math.max(0,t.amount-t.share):0;
+  const isSplit=t.share!=null, owed=owedOf(t), rec=recoveredOf(t), out=outstandingOf(t), st=splitStatus(t);
+  const reps=(t.repayments||[]).slice().sort((a,b)=>pdate(a.date)-pdate(b.date));
+  const statusPill=isSplit?('<span class="split-status '+st+'">'+(st==='settled'?'Settled':st==='part'?'Partly settled':'Unsettled')+'</span>'):'';
   const splitBlock=isSplit?(
     '<div class="dl"><span>Full charge</span><b>'+fmt(t.amount)+'</b></div>'+
     '<div class="dl"><span>Your share'+(t.splitN?' (of '+t.splitN+')':'')+'</span><b>'+fmt(t.share)+'</b></div>'+
-    '<div class="dl"><span>Owed to you</span><b class="'+(t.settled?'owed-ok':'owed')+'">'+fmt(owed)+(t.settled?' · settled':'')+'</b></div>'
+    '<div class="dl"><span>Owed to you</span><b>'+fmt(owed)+'</b></div>'+
+    '<div class="dl"><span>Recovered</span><b class="owed-ok">'+fmt(rec)+'</b></div>'+
+    '<div class="dl"><span>Outstanding</span><b class="'+(out>0.5?'owed':'owed-ok')+'">'+fmt(out)+(out<=0.5?' · settled':'')+'</b></div>'
   ):'';
-  const settleBtn=isSplit?'<button class="btn sm" id="d_settle">'+(t.settled?'Mark unsettled':'Mark settled')+'</button>':'';
+  const repList=isSplit?(
+    '<div class="rep-head">Repayments '+statusPill+'</div>'+
+    (reps.length?('<div class="rep-list">'+reps.map(r=>
+      '<div class="rep-row"><div class="rep-m"><b class="mono">'+fmt(r.amount)+'</b><small>'+pdate(r.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+(r.note?' · '+esc(r.note):'')+'</small></div>'+
+      '<button class="rep-del" data-rep="'+esc(r.id||'')+'" title="Remove">×</button></div>').join('')+'</div>')
+      :'<div class="rep-empty">No repayments logged yet.</div>')+
+    (out>0.5?'<div class="rep-actions"><button class="btn sm" id="d_logrep">+ Log repayment</button><button class="btn sm" id="d_settle">Settle remaining ('+fmt(out)+')</button></div>':'')
+  ):'';
   showModal('<h3>Transaction</h3>'+
     '<div class="tx-amt mono">'+fmt(isSplit?t.share:t.amount)+(isSplit?'<small class="tx-amt-sub">your share of '+fmt(t.amount)+'</small>':'')+'</div>'+
     '<div class="tx-cat"><span class="tag">'+esc(t.category)+'</span></div>'+
@@ -1748,11 +1788,43 @@ function openTxnDetail(id){
       (tags.length?dl('Tags', tags.map(x=>'<span class="minitag">'+esc(x)+'</span>').join(' ')):'')+
       (t.note?dl('Note', esc(t.note)):'')+
     '</div>'+
+    (isSplit?'<div class="rep-wrap">'+repList+'</div>':'')+
     '<div class="modal-actions"><button class="btn ghost danger" id="d_del">Delete</button>'+
-    '<div style="display:flex;gap:8px">'+settleBtn+'<button class="btn" onclick="closeModal()">Close</button><button class="btn primary" id="d_edit">Edit</button></div></div>');
+    '<div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Close</button><button class="btn primary" id="d_edit">Edit</button></div></div>');
   document.getElementById('d_edit').onclick=()=>openTxn(id);
   document.getElementById('d_del').onclick=()=>delTxn(id);
-  if(isSplit)document.getElementById('d_settle').onclick=()=>{t.settled=!t.settled;t.updatedAt=now();persist();openTxnDetail(id);};
+  if(isSplit){
+    const logBtn=document.getElementById('d_logrep'); if(logBtn)logBtn.onclick=()=>openRepayment(id);
+    const setBtn=document.getElementById('d_settle'); if(setBtn)setBtn.onclick=()=>{addRepayment(id,outstandingOf(t),new Date().toISOString().slice(0,10),'settled remaining');};
+    modal.querySelectorAll('[data-rep]').forEach(b=>b.onclick=()=>{
+      t.repayments=(t.repayments||[]).filter(r=>(r.id||'')!==b.dataset.rep);t.updatedAt=now();persist();openTxnDetail(id);
+    });
+  }
+}
+function addRepayment(id,amount,date,note){
+  const t=db.txns.find(x=>x.id===id); if(!t)return;
+  amount=+amount; if(!(amount>0))return;
+  amount=Math.min(amount,outstandingOf(t));                 // never over-recover
+  if(amount<=0){toast('Already fully settled');return;}
+  (t.repayments=t.repayments||[]).push({id:uid(),amount:+amount.toFixed(2),date:date||new Date().toISOString().slice(0,10),note:(note||'').trim()});
+  t.updatedAt=now();persist();openTxnDetail(id);
+  toast(outstandingOf(t)<=0.5?'Split settled':'Repayment logged');
+}
+function openRepayment(id){
+  const t=db.txns.find(x=>x.id===id); if(!t)return;
+  const out=outstandingOf(t), today=new Date().toISOString().slice(0,10);
+  showModal('<h3>Log Repayment</h3>'+
+    '<p style="font-size:13px;color:var(--slate);margin:-4px 0 12px">Outstanding: <b class="mono" style="color:var(--ink)">'+fmt(out)+'</b></p>'+
+    '<div class="row2"><div class="field"><label>Amount received</label><input id="r_amt" type="number" step="0.01" value="" placeholder="e.g. '+Math.round(out)+'"></div>'+
+    '<div class="field"><label>Date</label><input id="r_date" type="date" value="'+today+'"></div></div>'+
+    '<div class="field"><label>Note (optional)</label><input id="r_note" placeholder="e.g. Ravi, or part payment"></div>'+
+    '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="r_save">Log</button></div></div>');
+  document.getElementById('r_save').onclick=()=>{
+    clearErrors();
+    const amt=+document.getElementById('r_amt').value;
+    if(!(amt>0)){markError(document.getElementById('r_amt'),'Enter an amount').focus();return;}
+    addRepayment(id,amt,document.getElementById('r_date').value,document.getElementById('r_note').value);
+  };
 }
 function deleteCard(id){
   const c=db.cards.find(x=>x.id===id);if(!c)return;
