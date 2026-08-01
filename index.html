@@ -571,6 +571,12 @@
   .owed-a{flex:none;font-weight:700;font-size:var(--fs-md);color:var(--good)}
   .owed-more{font-size:11px;color:var(--slate);padding:8px 2px 0}
   .owed-cap{font-size:11px;color:var(--slate-2);margin:-2px 0 6px}
+  .bak-list{display:flex;flex-direction:column;gap:8px;max-height:344px;overflow:auto}
+  .bak-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--paper)}
+  .bak-m b{display:block;font-size:var(--fs-sm);color:var(--ink);font-weight:600}
+  .bak-m small{font-size:var(--fs-xs);color:var(--slate)}
+  .inh-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;vertical-align:middle;
+    color:var(--slate);background:var(--paper);border:1px solid var(--line);border-radius:var(--r-pill);padding:2px 8px;margin-left:4px}
   /* ======================================================== */
 
   /* ==================== FINTECH ENHANCEMENT LAYER ==================== */
@@ -708,6 +714,7 @@
 const LS_KEY='cardledger:v1';
 const CFG_KEY='cardledger:cfg';
 const TOK_KEY='cardledger:tok';
+const BAK_KEY='cardledger:bak';
 const DRIVE_FILE='cardledger-data.json';
 const SCOPE='https://www.googleapis.com/auth/drive.file';
 const PALETTE=['#23405C','#10897B','#B5651D','#7A5EA6','#C0546B','#3E7CB1','#D89216','#5B8C5A','#8A8D91','#485696'];
@@ -729,6 +736,7 @@ let accessToken=null, tokenClient=null, driveFileId=null, syncing=false;
 function blankDB(){
   return {cards:[],txns:[],payments:[],
     budget:{total:0,categories:{},warn:80,over:100},
+    budgets:{},
     settings:{currency:'INR',categories:DEFAULT_CATS.slice()},
     tombstones:{cards:{},txns:{},payments:{}},
     meta:{lastModified:0}};
@@ -774,6 +782,34 @@ function shiftPeriod(dir){
   view.anchor=new Date(d);
 }
 function budgetMultiplier(){return {month:1,quarter:3,half:6,year:12}[view.type];}
+/* ---- per-month budgets (with lazy backward inheritance) ---- */
+function monthKey(d){d=pdate(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function anchorMonthKey(){return monthKey(view.anchor);}
+function normBudget(b){return {total:+((b&&b.total)||0)||0, categories:(b&&b.categories&&typeof b.categories==='object')?b.categories:{}};}
+function effectiveBudget(mk){                              // this month's budget, inheriting from the nearest prior month, else the global template
+  if(db.budgets&&db.budgets[mk]) return normBudget(db.budgets[mk]);
+  const prior=Object.keys(db.budgets||{}).filter(k=>k<mk).sort();
+  if(prior.length) return normBudget(db.budgets[prior[prior.length-1]]);
+  return normBudget(db.budget);
+}
+function isInherited(mk){return !(db.budgets&&db.budgets[mk]);}
+function ensureMonthBudget(mk){                            // materialise a month from its inherited values before editing
+  if(!db.budgets) db.budgets={};
+  if(!db.budgets[mk]){const e=effectiveBudget(mk);db.budgets[mk]={total:e.total,categories:Object.assign({},e.categories)};}
+  return db.budgets[mk];
+}
+function monthsInView(){
+  const r=periodRange(), out=[]; let d=new Date(r.start.getFullYear(),r.start.getMonth(),1);
+  while(d<r.end){out.push(monthKey(d)); d=new Date(d.getFullYear(),d.getMonth()+1,1);}
+  return out;
+}
+function periodBudget(){                                   // sum of each month's effective budget across the current period
+  const cats={}; let total=0;
+  monthsInView().forEach(mk=>{const b=effectiveBudget(mk); total+=b.total; Object.entries(b.categories).forEach(([c,v])=>cats[c]=(cats[c]||0)+(+v||0));});
+  return {total, categories:cats};
+}
+function renameCatBudget(oldN,newN){const fix=o=>{if(o&&o[oldN]!=null){o[newN]=o[oldN];delete o[oldN];}};fix(db.budget.categories);Object.values(db.budgets||{}).forEach(m=>fix(m.categories));}
+function deleteCatBudget(name){const fix=o=>{if(o)delete o[name];};fix(db.budget.categories);Object.values(db.budgets||{}).forEach(m=>fix(m.categories));}
 function pdate(s){if(s instanceof Date)return s;const p=(''+s).split('-');return new Date(+p[0],(+p[1]||1)-1,(+p[2]||1));}
 function inPeriod(dateStr,r){const t=pdate(dateStr).getTime();return t>=r.start.getTime()&&t<r.end.getTime();}
 function prevRange(){const save=new Date(view.anchor);shiftPeriod(-1);const r=periodRange();view.anchor=save;return r;}
@@ -787,6 +823,8 @@ function normalize(d){
   d.budget.warn=+d.budget.warn||80;
   d.budget.over=+d.budget.over||100;
   if(!d.budget.categories||typeof d.budget.categories!=='object')d.budget.categories={};
+  if(!d.budgets||typeof d.budgets!=='object')d.budgets={};
+  Object.keys(d.budgets).forEach(k=>{const m=d.budgets[k]||{};d.budgets[k]={total:+m.total||0,categories:(m.categories&&typeof m.categories==='object')?m.categories:{}};});
   d.settings=d.settings&&typeof d.settings==='object'?d.settings:{};
   if(!Array.isArray(d.settings.categories)||!d.settings.categories.length)d.settings.categories=DEFAULT_CATS.slice();
   if(!d.settings.currency)d.settings.currency='INR';
@@ -871,7 +909,30 @@ function suggestCategory(merchant){
 }
 
 /* ---------- persistence ---------- */
-function saveLocal(){db.meta.lastModified=now();try{localStorage.setItem(LS_KEY,JSON.stringify(db));}catch(e){}}
+function saveLocal(){db.meta.lastModified=now();try{localStorage.setItem(LS_KEY,JSON.stringify(db));}catch(e){}pushBackup();}
+function pushBackup(){
+  try{
+    const cur=localStorage.getItem(LS_KEY); if(!cur)return;
+    let baks=[]; try{baks=JSON.parse(localStorage.getItem(BAK_KEY)||'[]');}catch(e){baks=[];}
+    const last=baks[0];
+    if(last&&last.data===cur) return;                 // unchanged since last snapshot
+    if(last&&(now()-last.ts)<15*60*1000) baks[0]={ts:now(),data:cur};   // update the latest within a 15-min window
+    else baks.unshift({ts:now(),data:cur});           // otherwise take a new snapshot slot
+    baks=baks.slice(0,6);                              // keep the most recent 6
+    try{localStorage.setItem(BAK_KEY,JSON.stringify(baks));}
+    catch(e){ baks=baks.slice(0,3); try{localStorage.setItem(BAK_KEY,JSON.stringify(baks));}catch(e2){} }  // trim on quota
+  }catch(e){}
+}
+function backups(){try{return JSON.parse(localStorage.getItem(BAK_KEY)||'[]');}catch(e){return [];}}
+function restoreBackup(ts){
+  const b=backups().find(x=>x.ts===ts); if(!b)return;
+  confirmModal('Restore this backup from '+new Date(ts).toLocaleString('en-GB')+'? Your current data will be replaced (a fresh backup of the current state is kept).',()=>{
+    pushBackup();                                     // snapshot current state first
+    try{db=normalize(Object.assign(blankDB(),JSON.parse(b.data)));}catch(e){toast('Backup could not be read');return;}
+    if(db.settings&&db.settings.currency)cfg.currency=db.settings.currency;
+    saveLocal();scheduleSync();render();toast('Backup restored');
+  },'Restore');
+}
 function loadLocal(){try{const s=localStorage.getItem(LS_KEY);if(s)db=normalize(Object.assign(blankDB(),JSON.parse(s)));}catch(e){}}
 function saveCfg(){try{localStorage.setItem(CFG_KEY,JSON.stringify(cfg));}catch(e){}}
 function loadCfg(){try{const s=localStorage.getItem(CFG_KEY);if(s)cfg=Object.assign(cfg,JSON.parse(s));}catch(e){}}
@@ -888,8 +949,19 @@ function scheduleSync(){clearTimeout(_syncTimer);_syncTimer=setTimeout(()=>pushT
 function mergeDB(remote){
   const out=blankDB();
   const remoteNewer = remote.meta && (remote.meta.lastModified||0) > (db.meta.lastModified||0);
-  out.settings = remoteNewer ? (remote.settings&&remote.settings.categories?remote.settings:db.settings) : (db.settings&&db.settings.categories?db.settings:(remote.settings||db.settings));
-  out.budget   = remoteNewer ? (remote.budget||db.budget) : (db.budget||remote.budget);
+  // budget & settings: never let an EMPTY object clobber a populated one (prevents sync wiping budgets)
+  const bHas=b=>b&&((+b.total>0)||Object.keys(b.categories||{}).length>0);
+  const lb=db.budget, rb=remote.budget;
+  out.budget = (bHas(lb)&&bHas(rb)) ? (remoteNewer?rb:lb) : (bHas(lb)?lb:(bHas(rb)?rb:(lb||rb)));
+  // per-month budgets: union by month; per month, never let empty clobber, tie-break by recency
+  out.budgets={};
+  new Set([...Object.keys(db.budgets||{}),...Object.keys(remote.budgets||{})]).forEach(k=>{
+    const l=(db.budgets||{})[k], r=(remote.budgets||{})[k];
+    out.budgets[k]=(bHas(l)&&bHas(r))?(remoteNewer?r:l):(bHas(l)?l:(bHas(r)?r:(l||r)));
+  });
+  const sHas=s=>s&&Array.isArray(s.categories)&&s.categories.length>0;
+  const ls=db.settings, rs=remote.settings;
+  out.settings = (sHas(ls)&&sHas(rs)) ? (remoteNewer?rs:ls) : (sHas(ls)?ls:(sHas(rs)?rs:(ls||rs)));
   ['cards','txns','payments'].forEach(coll=>{
     const map={};
     (db[coll]||[]).forEach(x=>map[x.id]=x);
@@ -1042,7 +1114,9 @@ function render(){
 
 function renderBudget(){
   const app=document.getElementById('app');
-  const b=db.budget;
+  const mk=anchorMonthKey(), eff=effectiveBudget(mk), b={total:eff.total, categories:eff.categories, warn:db.budget.warn||80, over:db.budget.over||100};
+  const monthLbl=new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1).toLocaleString('en-US',{month:'long',year:'numeric'});
+  const inheritNote=isInherited(mk)?' <span class="inh-badge">inherited</span>':'';
   const mSpend={}, r={start:new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1),end:new Date(view.anchor.getFullYear(),view.anchor.getMonth()+1,1)};
   db.txns.filter(t=>inPeriod(t.date,r)).forEach(t=>mSpend[t.category]=(mSpend[t.category]||0)+shareOf(t));
   const totalSpend=Object.values(mSpend).reduce((a,c)=>a+c,0);
@@ -1053,9 +1127,9 @@ function renderBudget(){
     '<div class="modebar"><span>'+(budMode==='edit'?'Edit mode — tap the ✎ on a category to change its name or budget.':'Delete mode — tap the 🗑 on a category to remove it.')+'</span><button class="btn sm" id="b_done">Done</button></div>';
 
   app.innerHTML=
-    '<div class="card" style="margin-bottom:13px"><h2>Monthly Budget <span class="muted">Per month · longer periods scale automatically</span></h2>'+
+    '<div class="card" style="margin-bottom:13px"><h2>Budget — '+monthLbl+inheritNote+' <span class="muted">Edits apply to this month onward; past months stay as they were</span></h2>'+
       '<div class="budgrid" style="margin-top:12px">'+
-        '<div class="bfield"><label>Total monthly budget</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="e.g. 150000"></div>'+
+        '<div class="bfield"><label>Total budget ('+monthLbl+')</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="e.g. 150000"></div>'+
         '<div class="bfield"><label>Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
         '<div class="bfield"><label>Over at %</label><input id="b_over" class="cbud" type="number" value="'+(b.over||100)+'"></div>'+
       '</div>'+
@@ -1088,7 +1162,7 @@ function renderBudget(){
 
   // monthly budget numbers save on change (blur)
   const commitNums=()=>{
-    db.budget.total=+document.getElementById('b_total').value||0;
+    ensureMonthBudget(mk).total=+document.getElementById('b_total').value||0;
     db.budget.warn=+document.getElementById('b_warn').value||80;
     db.budget.over=+document.getElementById('b_over').value||100;
     saveLocal(); if(accessToken) scheduleSync();
@@ -1114,10 +1188,11 @@ function renderBudget(){
 
 function openCategory(name){
   const editing=!!name;
-  const curBud=editing?(db.budget.categories[name]||''):'';
+  const mk=anchorMonthKey();
+  const curBud=editing?(effectiveBudget(mk).categories[name]||''):'';
   showModal('<h3>'+(editing?'Edit Category':'Add Category')+'</h3>'+
     '<div class="field"><label>Category name</label><input id="c_name" value="'+esc(name||'')+'" placeholder="e.g. Insurance"></div>'+
-    '<div class="field"><label>Monthly budget (optional)</label><input id="c_bud" type="number" value="'+curBud+'" placeholder="leave blank for no limit"></div>'+
+    '<div class="field"><label>Budget for '+new Date(view.anchor.getFullYear(),view.anchor.getMonth(),1).toLocaleString('en-US',{month:'short',year:'numeric'})+' (optional)</label><input id="c_bud" type="number" value="'+curBud+'" placeholder="leave blank for no limit"></div>'+
     '<div class="modal-actions"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="c_save">Save</button></div></div>');
   document.getElementById('c_save').onclick=()=>{
     clearErrors();
@@ -1130,13 +1205,14 @@ function openCategory(name){
     if(editing){
       if(nm!==name){
         db.settings.categories=cats.map(x=>x===name?nm:x);
-        if(db.budget.categories[name]!=null){db.budget.categories[nm]=db.budget.categories[name];delete db.budget.categories[name];}
+        renameCatBudget(name,nm);
         db.txns.forEach(t=>{if(t.category===name){t.category=nm;t.updatedAt=now();}});
       }
-      if(bud)db.budget.categories[nm]=bud; else delete db.budget.categories[nm];
+      const mb=ensureMonthBudget(mk);
+      if(bud)mb.categories[nm]=bud; else delete mb.categories[nm];
     } else {
       db.settings.categories=cats.concat(nm);
-      if(bud)db.budget.categories[nm]=bud;
+      if(bud)ensureMonthBudget(mk).categories[nm]=bud;
     }
     CATCOLORS_ready=false; closeModal(); persist(); toast(editing?'Category updated':'Category added');
   };
@@ -1145,7 +1221,7 @@ function deleteCategory(name){
   const used=db.txns.some(t=>t.category===name);
   confirmModal('Delete category "'+esc(name)+'"?'+(used?' It is used by existing transactions — they will keep their label.':''),()=>{
     db.settings.categories=(db.settings.categories||[]).filter(x=>x!==name);
-    delete db.budget.categories[name];
+    deleteCatBudget(name);
     CATCOLORS_ready=false; persist(); toast('Category deleted');
   });
 }
@@ -1165,7 +1241,7 @@ function wireEmpty(){
 function tilesHTML(){
   const r=periodRange(), tx=periodTxns();
   const total=tx.reduce((s,t)=>s+shareOf(t),0);
-  const budget=(db.budget.total||0)*budgetMultiplier();
+  const budget=periodBudget().total;
   const pct=budget?Math.round(total/budget*100):0;
   const left=budget-total;
   const budgetCls=pct>=(db.budget.over||100)?'over':pct>=(db.budget.warn||80)?'caution':'good';
@@ -1291,9 +1367,9 @@ function budgetHTML(){
   tx.forEach(t=>byCat[t.category]=(byCat[t.category]||0)+shareOf(t));
   const cats=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).slice(0,6);
   if(!cats.length)return '';
-  const mult=budgetMultiplier();
+  const pbCats=periodBudget().categories;
   const bars=cats.map(cat=>{
-    const actual=byCat[cat], bg=(db.budget.categories[cat]||0)*mult;
+    const actual=byCat[cat], bg=pbCats[cat]||0;
     if(!bg)return '<div><div class="line"><span>'+esc(cat)+'</span><span class="amt">'+fmt(actual)+' <span style="color:var(--slate);font-weight:400">/ no budget</span></span></div><div class="track" style="height:9px"><div class="fill" style="width:100%;background:var(--line)"></div></div></div>';
     const pct=Math.min(100,actual/bg*100), over=actual>bg;
     const col=over?'var(--over)':pct>85?'var(--caution)':'var(--good)';
@@ -1342,7 +1418,7 @@ function insightsHTML(){
   const totalDays=Math.round((r.end-r.start)/DAY);
   const elapsed=containsToday?Math.max(1,Math.min(totalDays,Math.ceil((now-r.start)/DAY))):totalDays;
   const daysLeft=Math.max(0,totalDays-elapsed);
-  const budget=(db.budget.total||0)*budgetMultiplier();
+  const budget=periodBudget().total;
   const N=x=>fmt(x);
   const items=[];
 
@@ -1713,6 +1789,8 @@ function openData(){
     '<div class="field"><label>Import backup (JSON)</label><input type="file" id="d_impj" accept=".json"></div>'+
     '<div class="field"><label>Import statement (CSV)</label><input type="file" id="d_impc" accept=".csv"><div class="hint">You\'ll map the date / amount / description columns next.</div></div>'+
     '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
+    '<div class="field"><button class="btn" style="width:100%" id="d_bak">↶ Restore from auto-backup</button><div class="hint">Automatic local snapshots (last 6). Use if data was lost or a sync went wrong.</div></div>'+
+    '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
     '<div class="field"><button class="btn ghost danger" style="width:100%;border:1px solid var(--line)" id="d_clear">🗑 Clear All Data</button><div class="hint">Wipes every card, transaction, payment and budget on this device (and in Drive if synced). Export a backup first if unsure.</div></div>'+
     '<div class="modal-actions"><span></span><button class="btn" onclick="closeModal()">Close</button></div>');
   document.getElementById('d_json').onclick=exportJSON;
@@ -1720,7 +1798,24 @@ function openData(){
   document.getElementById('d_pdf').onclick=()=>{closeModal();setTimeout(()=>window.print(),200);};
   document.getElementById('d_impj').onchange=importJSON;
   document.getElementById('d_impc').onchange=importCSVfile;
+  document.getElementById('d_bak').onclick=openBackups;
   document.getElementById('d_clear').onclick=clearAll;
+}
+function openBackups(){
+  const baks=backups();
+  if(!baks.length){toast('No backups yet — they build up as you use the app');return;}
+  const rows=baks.map(b=>{
+    let d={}; try{d=JSON.parse(b.data);}catch(e){}
+    const nT=(d.txns||[]).length, nC=(d.cards||[]).length;
+    const bud=d.budget&&((+d.budget.total>0)||Object.keys(d.budget.categories||{}).length>0)?'budget set':'no budget';
+    return '<div class="bak-row"><div class="bak-m"><b>'+new Date(b.ts).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</b>'+
+      '<small>'+nC+' cards · '+nT+' txns · '+bud+'</small></div>'+
+      '<button class="btn sm" data-bts="'+b.ts+'">Restore</button></div>';
+  }).join('');
+  showModal('<h3>Restore from Backup</h3><p style="font-size:13px;color:var(--slate);margin:-6px 0 12px">Pick a snapshot to roll back to. Your current state is backed up first, so this is reversible.</p>'+
+    '<div class="bak-list">'+rows+'</div>'+
+    '<div class="modal-actions"><span></span><button class="btn" onclick="closeModal()">Close</button></div>');
+  modal.querySelectorAll('[data-bts]').forEach(b=>b.onclick=()=>restoreBackup(+b.dataset.bts));
 }
 function clearAll(){
   const total=db.cards.length+db.txns.length+db.payments.length;
