@@ -149,7 +149,7 @@
   .card h2{font-size:var(--fs-lg);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-.02em}
   .card h2 .muted{font-family:Inter;font-weight:450;font-size:var(--fs-xs);color:var(--slate);letter-spacing:normal}
 
-  /* ---------- Your Cards â€” premium physical-card styling ---------- */
+  /* ---------- Your Cards — premium physical-card styling ---------- */
   .crow{display:grid;grid-template-columns:1.5fr .9fr .9fr 1.1fr auto;gap:14px;align-items:center;
     padding:16px 18px;margin:0 0 10px;border:1px solid var(--line);border-radius:var(--r-xl);
     background:linear-gradient(180deg,#1B2434 0%,#161E2D 100%);box-shadow:var(--shadow-sm);
@@ -672,7 +672,7 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="mark" id="curMark">â‚¹</div>
+      <div class="mark" id="curMark">₹</div>
       <div><h1>CardLedger</h1><span>Personal credit-card spend &amp; budget tracker</span></div>
     </div>
     <div class="actions">
@@ -680,7 +680,7 @@
       <div class="act-utility">
         <button class="btn sm" id="btnSync">Connect Drive</button>
         <button class="btn sm" id="btnSettings">Settings</button>
-        <button class="btn sm" id="btnData">Data â–¾</button>
+        <button class="btn sm" id="btnData">Data ▾</button>
       </div>
       <div class="act-primary">
         <button class="btn primary" id="btnTxn">+ Log Spend</button>
@@ -705,9 +705,9 @@
       </div>
     </div>
     <div class="nav">
-      <button class="arrow" id="navPrev" aria-label="Previous period">â€¹</button>
-      <span class="period" id="periodLabel">â€”</span>
-      <button class="arrow" id="navNext" aria-label="Next period">â€º</button>
+      <button class="arrow" id="navPrev" aria-label="Previous period">‹</button>
+      <span class="period" id="periodLabel">—</span>
+      <button class="arrow" id="navNext" aria-label="Next period">›</button>
     </div>
   </div>
 
@@ -729,7 +729,7 @@ const SCOPE='https://www.googleapis.com/auth/drive.file';
 const PALETTE=['#23405C','#10897B','#B5651D','#7A5EA6','#C0546B','#3E7CB1','#D89216','#5B8C5A','#8A8D91','#485696'];
 const DEFAULT_CATS=['Groceries','Dining','Shopping','Fuel','Bills & Utilities','Travel','Entertainment','Health','Subscriptions','Education','Cash/ATM','Other'];
 const CATCOLORS={};
-const CURR={INR:'â‚¹',USD:'$',EUR:'â‚¬',GBP:'Â£',AED:'AED '};
+const CURR={INR:'₹',USD:'$',EUR:'€',GBP:'£',AED:'AED '};
 
 /* ---------- state ---------- */
 let db=blankDB();
@@ -884,7 +884,7 @@ function detectRecurring(){
     const consistent=amts.filter(a=>Math.abs(a-med)<=Math.max(1,med*0.2)).length;
     if(consistent<Math.ceil(list.length*0.6))return;
     const last=list.slice().sort((a,b)=>pdate(b.date)-pdate(a.date))[0];
-    out.push({merchant:last.merchant||'â€”',amount:med,category:last.category,months:months.size,last:last.date});
+    out.push({merchant:last.merchant||'—',amount:med,category:last.category,months:months.size,last:last.date});
   });
   return out.sort((a,b)=>b.amount-a.amount);
 }
@@ -998,7 +998,7 @@ function saveToken(resp){
 }
 function ensureTokenClient(){
   if(!cfg.clientId){toast('Add your Google Client ID in Settings first');openSettings();return false;}
-  if(!window.google||!google.accounts||!google.accounts.oauth2){toast('Google library still loading â€” try again in a moment');return false;}
+  if(!window.google||!google.accounts||!google.accounts.oauth2){toast('Google library still loading — try again in a moment');return false;}
   if(!tokenClient){
     tokenClient=google.accounts.oauth2.initTokenClient({
       client_id:cfg.clientId, scope:SCOPE,
@@ -1017,11 +1017,11 @@ function requestToken(prompt){
 }
 async function connectDrive(){
   if(!ensureTokenClient())return;
-  setSyn('busy','Connectingâ€¦');
+  setSyn('busy','Connecting…');
   try{ await requestToken(''); }                 // silent when already granted (no popup)
   catch(e){ setSyn('','Local only'); toast('Drive connection cancelled'); return; }
   try{ await fullSync(); setSyn('on','Drive synced'); toast('Connected to Google Drive'); }
-  catch(e){ setSyn('on','Saved locally Â· will retry'); }
+  catch(e){ setSyn('on','Saved locally · will retry'); }
 }
 async function autoReconnect(){
   // reuse a still-valid stored token so a refresh stays connected (no popup)
@@ -1084,7 +1084,7 @@ async function pushToDrive(){
   if(!accessToken)return;
   if(syncing){pushPending=true;return;} syncing=true;
   try{
-    setSyn('busy','Savingâ€¦');
+    setSyn('busy','Saving…');
     if(!driveFileId){const f=await driveFind();driveFileId=f?f.id:await driveCreate(db);}
     // pull+merge before push so other-device edits aren't lost
     const remote=await driveRead(driveFileId);db=mergeDB(remote);saveLocal();
@@ -1092,15 +1092,15 @@ async function pushToDrive(){
     setSyn('on','Drive synced'); render();
   }catch(e){
     const msg=''+e;
-    if(/\b401\b/.test(msg)){accessToken=null;try{localStorage.removeItem(TOK_KEY);}catch(e){}setSyn('','Sign-in expired');toast('Google sign-in expired â€” tap Connect Drive');}
-    else {if(/\b404\b/.test(msg))driveFileId=null; setSyn('on','Saved locally Â· will retry');}
+    if(/\b401\b/.test(msg)){accessToken=null;try{localStorage.removeItem(TOK_KEY);}catch(e){}setSyn('','Sign-in expired');toast('Google sign-in expired — tap Connect Drive');}
+    else {if(/\b404\b/.test(msg))driveFileId=null; setSyn('on','Saved locally · will retry');}
   }finally{syncing=false;runPending();}
 }
 
 /* ---------- rendering ---------- */
 function render(){
   buildCatColors();
-  document.getElementById('curMark').textContent=sym().trim()||'â‚¹';
+  document.getElementById('curMark').textContent=sym().trim()||'₹';
   document.querySelectorAll('#tabs .tab').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===screen?'true':'false'));
   document.getElementById('lensBar').style.display=(screen==='budget')?'none':'';
   document.getElementById('btnTxn').style.display=(screen==='transactions')?'':'none';
@@ -1141,10 +1141,10 @@ function renderBudget(){
   const unallocSeg=(!overAlloc&&leftAlloc>0.5)?'<i class="unalloc" style="width:'+(leftAlloc/denom*100)+'%"></i>':'';
 
   const modeBar = budMode==='view' ? '' :
-    '<div class="modebar"><span>'+(budMode==='edit'?'Edit mode â€” tap the âœŽ on a category to change its name or budget.':'Delete mode â€” tap the ðŸ—‘ on a category to remove it.')+'</span><button class="btn sm" id="b_done">Done</button></div>';
+    '<div class="modebar"><span>'+(budMode==='edit'?'Edit mode — tap the ✎ on a category to change its name or budget.':'Delete mode — tap the 🗑 on a category to remove it.')+'</span><button class="btn sm" id="b_done">Done</button></div>';
 
   app.innerHTML=
-    '<div class="card" style="margin-bottom:13px"><h2>Budget â€” '+monthLbl+inheritNote+' <span class="muted">Edits apply to this month onward; past months stay as they were</span></h2>'+
+    '<div class="card" style="margin-bottom:13px"><h2>Budget — '+monthLbl+inheritNote+' <span class="muted">Edits apply to this month onward; past months stay as they were</span></h2>'+
       '<div class="budgrid" style="margin-top:12px">'+
         '<div class="bfield"><label>Total budget ('+monthLbl+')</label><input id="b_total" class="cbud" type="number" value="'+(b.total||'')+'" placeholder="e.g. 150000"></div>'+
         '<div class="bfield"><label>Warn at %</label><input id="b_warn" class="cbud" type="number" value="'+(b.warn||80)+'"></div>'+
@@ -1154,14 +1154,14 @@ function renderBudget(){
         '<div class="bud-sum">'+
           '<div class="bud-sum-l"><span class="cap2">Allocation</span>'+
             (overAlloc
-              ? '<span class="over-txt">âš  Over-allocated by <b class="mono">'+fmt(-leftAlloc)+'</b></span>'
-              : '<span class="bs-txt">Allocated <b class="mono">'+fmt(allocated)+'</b> of '+fmt(b.total)+' Â· <b class="mono '+(leftAlloc>0.5?'good-txt':'')+'">'+fmt(leftAlloc)+' left to allocate</b></span>')+
+              ? '<span class="over-txt">⚠ Over-allocated by <b class="mono">'+fmt(-leftAlloc)+'</b></span>'
+              : '<span class="bs-txt">Allocated <b class="mono">'+fmt(allocated)+'</b> of '+fmt(b.total)+' · <b class="mono '+(leftAlloc>0.5?'good-txt':'')+'">'+fmt(leftAlloc)+' left to allocate</b></span>')+
           '</div>'+
           '<div class="alloc-bar">'+allocSegs+unallocSeg+'</div>'+
         '</div>'+
         '<div class="bud-sum">'+
           '<div class="bud-sum-l"><span class="cap2">Spending</span>'+
-            '<span class="bs-txt">Spent <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' Â· <b class="mono '+(underOver>=0?'good-txt':'over-txt')+'">'+fmt(Math.abs(underOver))+(underOver>=0?' under budget':' over budget')+'</b></span>'+
+            '<span class="bs-txt">Spent <b class="mono">'+fmt(totalSpend)+'</b> of '+fmt(b.total)+' · <b class="mono '+(underOver>=0?'good-txt':'over-txt')+'">'+fmt(Math.abs(underOver))+(underOver>=0?' under budget':' over budget')+'</b></span>'+
             '<span class="pill '+cls+'">'+totalPct+'%</span>'+
           '</div>'+
           '<div class="track" style="height:9px"><div class="fill" style="width:'+Math.min(100,totalPct)+'%;background:var(--'+cls+')"></div></div>'+
@@ -1169,11 +1169,11 @@ function renderBudget(){
         :'<div class="sub" style="font-size:12.5px;color:var(--slate);margin-top:12px">Set a total budget above to see allocation and spending.</div>')+
     '</div>'+
     '<div class="card"><h2>Categories &amp; Per-Category Budgets'+
-      '<span style="position:relative;display:inline-block"><button class="btn sm" id="cat_gear">âš™ Manage â–¾</button>'+
+      '<span style="position:relative;display:inline-block"><button class="btn sm" id="cat_gear">⚙ Manage ▾</button>'+
         '<div class="menu" id="cat_menu" style="display:none">'+
-          '<button data-m="add">ï¼‹&nbsp; Add Category</button>'+
-          '<button data-m="edit">âœŽ&nbsp; Edit Category</button>'+
-          '<button data-m="delete">ðŸ—‘&nbsp; Delete Category</button>'+
+          '<button data-m="add">＋&nbsp; Add Category</button>'+
+          '<button data-m="edit">✎&nbsp; Edit Category</button>'+
+          '<button data-m="delete">🗑&nbsp; Delete Category</button>'+
         '</div></span></h2>'+
       modeBar+
       '<div style="margin-top:8px">'+
@@ -1181,8 +1181,8 @@ function renderBudget(){
       (db.settings.categories||[]).map(c=>{
         const bg=b.categories[c]||0, sp=mSpend[c]||0, over=bg&&sp>bg;
         let action='<div></div>';
-        if(budMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editcat="'+esc(c)+'" title="Edit">âœŽ</button></div>';
-        else if(budMode==='delete')action='<div style="text-align:right"><button class="rowbtn danger" data-delcat="'+esc(c)+'" title="Delete">ðŸ—‘</button></div>';
+        if(budMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editcat="'+esc(c)+'" title="Edit">✎</button></div>';
+        else if(budMode==='delete')action='<div style="text-align:right"><button class="rowbtn danger" data-delcat="'+esc(c)+'" title="Delete">🗑</button></div>';
         return '<div class="catrow"><div class="catname"><span class="dot" style="background:'+catColor(c)+'"></span>'+esc(c)+'</div>'+
           '<div class="mono" style="font-size:13px">'+(bg?'<span style="color:var(--ink)">'+fmt(bg)+'</span>':'<button class="setbud" data-setbud="'+esc(c)+'">+ Set Budget</button>')+'</div>'+
           '<div class="mono" style="text-align:right;font-size:13px;color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(sp)+'</div>'+
@@ -1251,7 +1251,7 @@ function openCategory(name){
 }
 function deleteCategory(name){
   const used=db.txns.some(t=>t.category===name);
-  confirmModal('Delete category "'+esc(name)+'"?'+(used?' It is used by existing transactions â€” they will keep their label.':''),()=>{
+  confirmModal('Delete category "'+esc(name)+'"?'+(used?' It is used by existing transactions — they will keep their label.':''),()=>{
     db.settings.categories=(db.settings.categories||[]).filter(x=>x!==name);
     deleteCatBudget(name);
     CATCOLORS_ready=false; persist(); toast('Category deleted');
@@ -1286,10 +1286,10 @@ function tilesHTML(){
   const pcap=view.type.charAt(0).toUpperCase()+view.type.slice(1);
   return '<div class="tiles">'+
     tile('var(--brand)','Total Spent',fmt(total),tx.length+' transactions')+
-    tile('var(--slate)','Budget ('+pcap+')',budget?fmt(budget):'â€” Not set',
+    tile('var(--slate)','Budget ('+pcap+')',budget?fmt(budget):'— Not set',
         budget?('<span class="pill '+budgetCls+'">'+pct+'% used</span> '+(left>=0?fmt(left)+' left':fmt(-left)+' over')):'Set in Settings',
         budget?{pct:Math.min(100,pct),cls:budgetCls}:null)+
-    tile('var(--good)','vs Previous '+pcap, prevTx?((diff>=0?'+':'')+diff+'%'):'â€”', prevTx?('Previous: '+fmt(prevTx)):'No prior data')+
+    tile('var(--good)','vs Previous '+pcap, prevTx?((diff>=0?'+':'')+diff+'%'):'—', prevTx?('Previous: '+fmt(prevTx)):'No prior data')+
     tile('var(--brand)','Overall Utilization',util+'%','<span class="pill '+utilCls+'">'+(util>=70?'High':util>=30?'Watch':'Healthy')+'</span> '+fmt(outstanding)+' of '+fmt(limit),{pct:Math.min(100,util),cls:utilCls})+
     '</div>';
 }
@@ -1340,9 +1340,9 @@ function cardStatusLine(c,s){
   if(s.billedDue>0){
     const when=s.daysToDue<=0?'Due today':s.daysToDue===1?'Due tomorrow':'Due in '+s.daysToDue+' days';
     const cls=s.daysToDue<=3?'caution':'';
-    return '<small class="cstat '+cls+'">'+fmt(s.billedDue)+' due by '+fmtDay(s.dueDate)+' Â· '+when+'</small>';
+    return '<small class="cstat '+cls+'">'+fmt(s.billedDue)+' due by '+fmtDay(s.dueDate)+' · '+when+'</small>';
   }
-  return '<small class="cstat good">No dues Â· Next statement '+fmtDay(s.nextStmt)+'</small>';
+  return '<small class="cstat good">No dues · Next statement '+fmtDay(s.nextStmt)+'</small>';
 }
 function cardsHTML(){
   const n=db.cards.length, active=activeCards().length;
@@ -1350,28 +1350,28 @@ function cardsHTML(){
   const dueNow=db.cards.reduce((s,c)=>s+cardStats(c).billedDue,0);
   const asOf=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   const head='<h2>'+
-    '<span class="h2-left"><span class="sec-toggle" id="cards_toggle"><span class="chev">'+(cardsOpen?'â–¾':'â–¸')+'</span>Your Cards<span class="count-badge">'+n+'</span></span>'+
+    '<span class="h2-left"><span class="sec-toggle" id="cards_toggle"><span class="chev">'+(cardsOpen?'▾':'▸')+'</span>Your Cards<span class="count-badge">'+n+'</span></span>'+
     '<span class="as-of">as of '+asOf+'</span></span>'+
-    (cardsOpen?'<span style="position:relative;display:inline-block"><button class="btn sm" id="card_gear">âš™ Manage â–¾</button>'+
+    (cardsOpen?'<span style="position:relative;display:inline-block"><button class="btn sm" id="card_gear">⚙ Manage ▾</button>'+
       '<div class="menu" id="card_menu" style="display:none">'+
-        '<button data-m="add">ï¼‹&nbsp; Add Card</button>'+
-        '<button data-m="edit">âœŽ&nbsp; Edit Card</button>'+
-        '<button data-m="pay">â‚¹&nbsp; Record Payment</button>'+
+        '<button data-m="add">＋&nbsp; Add Card</button>'+
+        '<button data-m="edit">✎&nbsp; Edit Card</button>'+
+        '<button data-m="pay">₹&nbsp; Record Payment</button>'+
       '</div></span>':'')+
     '</h2>';
   if(!cardsOpen){
     return '<div class="card" style="margin-bottom:13px">'+head+
       '<div class="cards-summary">'+active+' active card'+(active!==1?'s':'')+
-      ' Â· <b class="mono">'+fmt(dueNow)+'</b> due now Â· <b class="mono">'+fmt(totalOut)+'</b> outstanding</div></div>';
+      ' · <b class="mono">'+fmt(dueNow)+'</b> due now · <b class="mono">'+fmt(totalOut)+'</b> outstanding</div></div>';
   }
   const modeBar = cardMode==='view' ? '' :
-    '<div class="modebar"><span>'+({edit:'Edit mode â€” tap the âœŽ on a card to change its details.',pay:'Payment mode â€” tap the â‚¹ on a card to record a payment.'}[cardMode]||'')+'</span><button class="btn sm" id="card_done">Done</button></div>';
+    '<div class="modebar"><span>'+({edit:'Edit mode — tap the ✎ on a card to change its details.',pay:'Payment mode — tap the ₹ on a card to record a payment.'}[cardMode]||'')+'</span><button class="btn sm" id="card_done">Done</button></div>';
   const rows=db.cards.slice().sort((a,b)=>(a.status==='closed')-(b.status==='closed')).map(c=>{
     const s=cardStats(c);
     const cls=s.pct>=70?'over':s.pct>=30?'caution':'good';
     let action='<div></div>';
-    if(cardMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editc="'+c.id+'" title="Edit">âœŽ</button></div>';
-    else if(cardMode==='pay')action='<div style="text-align:right"><button class="rowbtn" data-pay="'+c.id+'" title="Record payment">â‚¹</button></div>';
+    if(cardMode==='edit')action='<div style="text-align:right"><button class="rowbtn" data-editc="'+c.id+'" title="Edit">✎</button></div>';
+    else if(cardMode==='pay')action='<div style="text-align:right"><button class="rowbtn" data-pay="'+c.id+'" title="Record payment">₹</button></div>';
     return '<div class="crow">'+
       '<div class="cname"><span class="chip" style="background:'+(c.color||'#23405C')+'"></span>'+
         '<div><b>'+esc(c.name)+(c.status==='closed'?'<span class="closed-badge">Closed</span>':'')+'</b>'+
@@ -1387,7 +1387,7 @@ function cardsHTML(){
 }
 
 function whereItWentHTML(){
-  return '<div class="card"><h2>Where It Went <span class="muted">'+periodRange().label+' Â· by category</span></h2>'+
+  return '<div class="card"><h2>Where It Went <span class="muted">'+periodRange().label+' · by category</span></h2>'+
     '<div class="donut-wrap"><div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div></div>';
 }
 function spendTrendHTML(){
@@ -1407,7 +1407,7 @@ function budgetHTML(){
     const col=over?'var(--over)':pct>85?'var(--caution)':'var(--good)';
     return '<div><div class="line"><span>'+esc(cat)+'</span><span class="amt" style="color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(actual)+' <span style="color:var(--slate);font-weight:400">/ '+fmt(bg)+'</span></span></div><div class="track" style="height:9px"><div class="fill" style="width:'+pct+'%;background:'+col+'"></div></div></div>';
   }).join('');
-  return '<div class="card"><h2>Budget vs Actual <span class="muted">top categories Â· '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
+  return '<div class="card"><h2>Budget vs Actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
 }
 function bentoRow(a,b){
   const items=[a,b].filter(x=>x&&x.trim());
@@ -1420,20 +1420,20 @@ function owedHTML(){
   const total=list.reduce((s,t)=>s+(t.amount-t.share),0);
   const rows=list.slice(0,8).map(t=>{
     const owed=t.amount-t.share;
-    return '<div class="owed-row" data-oid="'+t.id+'"><span class="owed-ic">â†©</span>'+
-      '<div class="owed-m"><b>'+esc(t.merchant||'â€”')+'</b><small>'+pdate(t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' Â· you paid '+fmt(t.amount)+'</small></div>'+
+    return '<div class="owed-row" data-oid="'+t.id+'"><span class="owed-ic">↩</span>'+
+      '<div class="owed-m"><b>'+esc(t.merchant||'—')+'</b><small>'+pdate(t.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' · you paid '+fmt(t.amount)+'</small></div>'+
       '<div class="owed-a mono">'+fmt(owed)+'</div></div>';
   }).join('');
   const more=list.length>8?'<div class="owed-more">+'+(list.length-8)+' more</div>':'';
-  return '<div class="card owed-card"><h2>Owed to You <span class="muted">'+fmt(total)+' Â· '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months â€” not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
+  return '<div class="card owed-card"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
 }
 function recurringHTML(){  const rec=detectRecurring();
   if(!rec.length)return '';
   const monthly=rec.reduce((s,r)=>s+r.amount,0);
   const rows=rec.map(r=>'<div class="rrow"><div class="rname"><span class="dot" style="background:'+catColor(r.category)+'"></span>'+
-    '<div><b>'+esc(r.merchant)+'</b><small>'+esc(r.category)+' Â· seen in '+r.months+' months</small></div></div>'+
+    '<div><b>'+esc(r.merchant)+'</b><small>'+esc(r.category)+' · seen in '+r.months+' months</small></div></div>'+
     '<div class="ramt mono">'+fmt(r.amount)+'<span>/mo</span></div></div>').join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Recurring &amp; Subscriptions <span class="muted">â‰ˆ '+fmt(monthly)+'/mo across '+rec.length+' item'+(rec.length>1?'s':'')+'</span></h2>'+
+  return '<div class="card" style="margin-bottom:13px"><h2>Recurring &amp; Subscriptions <span class="muted">≈ '+fmt(monthly)+'/mo across '+rec.length+' item'+(rec.length>1?'s':'')+'</span></h2>'+
     '<div class="rlist">'+rows+'</div></div>';
 }
 
@@ -1462,34 +1462,34 @@ function insightsHTML(){
       if(elapsed>=3){
         const projected=Math.round(curTotal/elapsed*totalDays);
         let color='good', sub='projected from '+elapsed+' of '+totalDays+' days';
-        if(budget){const d=projected-budget; if(d>0){color='caution';sub='â‰ˆ '+fmt(d)+' over budget at this pace';} else sub='â‰ˆ '+fmt(-d)+' under budget at this pace';}
-        items.push({p:10,c:color,g:'â‰ˆ',label:'On track this '+view.type,value:N(projected),sub:sub,bar:budget?{pct:usedPct,color:color==='caution'?'caution':'good'}:null});
+        if(budget){const d=projected-budget; if(d>0){color='caution';sub='≈ '+fmt(d)+' over budget at this pace';} else sub='≈ '+fmt(-d)+' under budget at this pace';}
+        items.push({p:10,c:color,g:'≈',label:'On track this '+view.type,value:N(projected),sub:sub,bar:budget?{pct:usedPct,color:color==='caution'?'caution':'good'}:null});
       }
-      if(budget){const left=budget-curTotal; if(left>0) items.push({p:9,c:'good',g:'Ã·',label:'Daily budget left',value:N(Math.round(left/daysLeft))+'/day',sub:fmt(left)+' left Â· '+daysLeft+' day'+(daysLeft>1?'s':''),bar:{pct:usedPct,color:usedPct>85?'caution':'good'}});}
+      if(budget){const left=budget-curTotal; if(left>0) items.push({p:9,c:'good',g:'÷',label:'Daily budget left',value:N(Math.round(left/daysLeft))+'/day',sub:fmt(left)+' left · '+daysLeft+' day'+(daysLeft>1?'s':''),bar:{pct:usedPct,color:usedPct>85?'caution':'good'}});}
     }
   }
   if(prevTotal>0){
     const pct=Math.round((curTotal-prevTotal)/prevTotal*100), hi=pct>=0;
-    items.push({p:8,c:hi?'caution':'good',g:hi?'â†‘':'â†“',label:'vs '+lastLabel,value:(hi?'+':'âˆ’')+Math.abs(pct)+'%',sub:fmt(curTotal)+' vs '+fmt(prevTotal)});
+    items.push({p:8,c:hi?'caution':'good',g:hi?'↑':'↓',label:'vs '+lastLabel,value:(hi?'+':'−')+Math.abs(pct)+'%',sub:fmt(curTotal)+' vs '+fmt(prevTotal)});
   }
   let up=null, dn=null;
   Object.keys(Object.assign({},cCat,pCat)).forEach(k=>{const delta=(cCat[k]||0)-(pCat[k]||0);
     if(delta>0&&(!up||delta>up.v))up={k,v:delta,now:cCat[k]||0};
     if(delta<0&&(!dn||delta<dn.v))dn={k,v:delta,was:pCat[k]||0};});
   const moverK=(up&&prevTotal>0&&up.v>=Math.max(200,curTotal*0.05))?up.k:null;
-  if(moverK) items.push({p:7,c:'caution',g:'â–²',label:esc(up.k)+' rising',value:'+'+N(up.v),sub:'now '+fmt(up.now)});
-  if(dn&&prevTotal>0&&(-dn.v)>=Math.max(200,prevTotal*0.05)) items.push({p:6,c:'good',g:'â–¼',label:esc(dn.k)+' down',value:'âˆ’'+N(-dn.v),sub:'from '+fmt(dn.was)});
+  if(moverK) items.push({p:7,c:'caution',g:'▲',label:esc(up.k)+' rising',value:'+'+N(up.v),sub:'now '+fmt(up.now)});
+  if(dn&&prevTotal>0&&(-dn.v)>=Math.max(200,prevTotal*0.05)) items.push({p:6,c:'good',g:'▼',label:esc(dn.k)+' down',value:'−'+N(-dn.v),sub:'from '+fmt(dn.was)});
   const big=cur.slice().sort((a,b)=>shareOf(b)-shareOf(a))[0];
-  if(big&&shareOf(big)>=Math.max(1000,curTotal*0.15)) items.push({p:5,c:'slate',g:'!',label:'Largest spend',value:N(shareOf(big)),sub:(big.merchant?esc(big.merchant)+' Â· ':'')+pdate(big.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})});
+  if(big&&shareOf(big)>=Math.max(1000,curTotal*0.15)) items.push({p:5,c:'slate',g:'!',label:'Largest spend',value:N(shareOf(big)),sub:(big.merchant?esc(big.merchant)+' · ':'')+pdate(big.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})});
   const topCat=Object.keys(cCat).sort((a,b)=>cCat[b]-cCat[a])[0];
   if(topCat&&topCat!==moverK) items.push({p:4,c:'brand',g:'%',label:esc(topCat)+' share',value:Math.round(cCat[topCat]/curTotal*100)+'%',sub:fmt(cCat[topCat])+' of '+fmt(curTotal)});
   const bm={};cur.forEach(t=>{const m=(t.merchant||'').trim();if(m){(bm[m]=bm[m]||{s:0,n:0});bm[m].s+=shareOf(t);bm[m].n++;}});
   const tm=Object.keys(bm).sort((a,b)=>bm[b].s-bm[a].s)[0];
-  if(tm&&bm[tm].n>=2) items.push({p:3,c:'slate',g:'â˜…',label:esc(tm),value:N(bm[tm].s),sub:bm[tm].n+' transactions Â· top merchant'});
+  if(tm&&bm[tm].n>=2) items.push({p:3,c:'slate',g:'★',label:esc(tm),value:N(bm[tm].s),sub:bm[tm].n+' transactions · top merchant'});
   const bc={};cur.forEach(t=>{bc[t.cardId]=(bc[t.cardId]||0)+shareOf(t);});
   const tc=Object.keys(bc).sort((a,b)=>bc[b]-bc[a])[0];
   const card=db.cards.find(c=>c.id===tc);
-  if(card&&Object.keys(bc).length>1) items.push({p:2,c:'slate',g:'â—†',label:esc(card.name),value:N(bc[tc]),sub:'most used this '+view.type});
+  if(card&&Object.keys(bc).length>1) items.push({p:2,c:'slate',g:'◆',label:esc(card.name),value:N(bc[tc]),sub:'most used this '+view.type});
   items.push({p:1,c:'slate',g:'~',label:'Daily average',value:N(Math.round(curTotal/elapsed))+'/day',sub:cur.length+' transaction'+(cur.length>1?'s':'')+' this '+view.type});
 
   items.sort((a,b)=>b.p-a.p);
@@ -1530,13 +1530,13 @@ function renderTxRows(){
     const c=db.cards.find(x=>x.id===t.cardId);
     const d=pdate(t.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
     const tags=(t.tags||'').split(',').map(s=>s.trim()).filter(Boolean).map(x=>'<span class="minitag">'+esc(x)+'</span>').join('');
-    const split=t.share!=null?'<span class="splitbadge'+(t.settled?' settled':'')+'">'+(t.settled?'split Â· settled':'split')+'</span>':'';
+    const split=t.share!=null?'<span class="splitbadge'+(t.settled?' settled':'')+'">'+(t.settled?'split · settled':'split')+'</span>':'';
     const amtCell=t.share!=null
       ? '<td class="amt">'+fmt(t.amount)+'<small class="shareline">your '+fmt(t.share)+'</small></td>'
       : '<td class="amt">'+fmt(t.amount)+'</td>';
-    return '<tr data-txid="'+t.id+'"><td>'+d+'</td><td style="font-weight:500">'+esc(t.merchant||'â€”')+split+tags+'</td>'+
+    return '<tr data-txid="'+t.id+'"><td>'+d+'</td><td style="font-weight:500">'+esc(t.merchant||'—')+split+tags+'</td>'+
       '<td><span class="tag">'+esc(t.category)+'</span></td>'+
-      '<td class="cardref">'+(c?esc(c.name)+' â€¢â€¢ '+esc(c.last4||''):'â€”')+'</td>'+
+      '<td class="cardref">'+(c?esc(c.name)+' •• '+esc(c.last4||''):'—')+'</td>'+
       amtCell+'</tr>';
   }).join('');
   body.querySelectorAll('[data-txid]').forEach(tr=>tr.onclick=()=>openTxnDetail(tr.dataset.txid));
@@ -1659,7 +1659,7 @@ function openTxn(id){
   if(!activeCards().length&&!id)return toast('Add a card first');
   const t=id?db.txns.find(x=>x.id===id):null;
   const cardsForPick=id?db.cards:activeCards();
-  const cardOpts=cardsForPick.map(c=>'<option value="'+c.id+'"'+(t&&t.cardId===c.id?' selected':'')+'>'+esc(c.name)+' â€¢â€¢ '+esc(c.last4||'')+'</option>').join('');
+  const cardOpts=cardsForPick.map(c=>'<option value="'+c.id+'"'+(t&&t.cardId===c.id?' selected':'')+'>'+esc(c.name)+' •• '+esc(c.last4||'')+'</option>').join('');
   const catOpts=(db.settings.categories||[]).map(c=>'<option'+(t&&t.category===c?' selected':'')+'>'+esc(c)+'</option>').join('');
   const today=new Date().toISOString().slice(0,10);
   showModal('<h3>'+(t?'Edit Spend':'Log Spend')+'</h3>'+
@@ -1684,7 +1684,7 @@ function openTxn(id){
     const amt=+document.getElementById('t_amt').value||0, n=Math.max(2,+splitN.value||2);
     if((force||!shareEdited)&&amt>0){shareIn.value=Math.round(amt/n*100)/100;}
     const sh=Math.min(amt,+shareIn.value||0), owed=Math.max(0,amt-sh);
-    splitHint.innerHTML=amt>0?('You pay <b>'+fmt(amt)+'</b> on the card Â· your share <b>'+fmt(sh)+'</b> Â· <span class="owed">'+fmt(owed)+' owed to you</span><br><span class="mut">Budget &amp; insights count only your share; card totals keep the full charge.</span>'):'';
+    splitHint.innerHTML=amt>0?('You pay <b>'+fmt(amt)+'</b> on the card · your share <b>'+fmt(sh)+'</b> · <span class="owed">'+fmt(owed)+' owed to you</span><br><span class="mut">Budget &amp; insights count only your share; card totals keep the full charge.</span>'):'';
   }
   splitCb.onchange=()=>{splitBox.style.display=splitCb.checked?'block':'none';if(splitCb.checked){shareEdited=false;recalcShare(true);}};
   splitN.oninput=()=>recalcShare(true);
@@ -1734,7 +1734,7 @@ function openTxnDetail(id){
   const splitBlock=isSplit?(
     '<div class="dl"><span>Full charge</span><b>'+fmt(t.amount)+'</b></div>'+
     '<div class="dl"><span>Your share'+(t.splitN?' (of '+t.splitN+')':'')+'</span><b>'+fmt(t.share)+'</b></div>'+
-    '<div class="dl"><span>Owed to you</span><b class="'+(t.settled?'owed-ok':'owed')+'">'+fmt(owed)+(t.settled?' Â· settled':'')+'</b></div>'
+    '<div class="dl"><span>Owed to you</span><b class="'+(t.settled?'owed-ok':'owed')+'">'+fmt(owed)+(t.settled?' · settled':'')+'</b></div>'
   ):'';
   const settleBtn=isSplit?'<button class="btn sm" id="d_settle">'+(t.settled?'Mark unsettled':'Mark settled')+'</button>':'';
   showModal('<h3>Transaction</h3>'+
@@ -1742,8 +1742,8 @@ function openTxnDetail(id){
     '<div class="tx-cat"><span class="tag">'+esc(t.category)+'</span></div>'+
     '<div class="dl-list">'+
       dl('Date', pdate(t.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}))+
-      dl('Merchant', esc(t.merchant||'â€”'))+
-      dl('Card', c?esc(c.name)+' â€¢â€¢ '+esc(c.last4||''):'â€”')+
+      dl('Merchant', esc(t.merchant||'—'))+
+      dl('Card', c?esc(c.name)+' •• '+esc(c.last4||''):'—')+
       splitBlock+
       (tags.length?dl('Tags', tags.map(x=>'<span class="minitag">'+esc(x)+'</span>').join(' ')):'')+
       (t.note?dl('Note', esc(t.note)):'')+
@@ -1756,7 +1756,7 @@ function openTxnDetail(id){
 }
 function deleteCard(id){
   const c=db.cards.find(x=>x.id===id);if(!c)return;
-  if(db.txns.some(t=>t.cardId===id))return toast('This card has transactions â€” set it to Closed instead of deleting.');
+  if(db.txns.some(t=>t.cardId===id))return toast('This card has transactions — set it to Closed instead of deleting.');
   confirmModal('Delete card "'+esc(c.name)+'"? This cannot be undone.',()=>{
     db.cards=db.cards.filter(x=>x.id!==id);db.tombstones.cards[id]=now();
     persist();toast('Card deleted');
@@ -1768,9 +1768,9 @@ function openPayment(cardId){
   const s=cardStats(c);
   const today=new Date().toISOString().slice(0,10);
   const ctx=s.cycleAware
-    ? 'Due now (this statement): <b class="mono">'+fmt(s.billedDue)+'</b> &nbsp;Â·&nbsp; Unbilled: <b class="mono">'+fmt(s.unbilledDue)+'</b>'
+    ? 'Due now (this statement): <b class="mono">'+fmt(s.billedDue)+'</b> &nbsp;·&nbsp; Unbilled: <b class="mono">'+fmt(s.unbilledDue)+'</b>'
     : 'Current outstanding: <b class="mono">'+fmt(s.overall)+'</b>';
-  showModal('<h3>Record Payment Â· '+esc(c.name)+'</h3>'+
+  showModal('<h3>Record Payment · '+esc(c.name)+'</h3>'+
     '<p class="hint" style="margin-top:-8px">'+ctx+'</p>'+
     '<div class="row2"><div class="field"><label>Date</label><input id="p_date" type="date" value="'+today+'"></div>'+
     '<div class="field"><label>Amount paid</label><input id="p_amt" type="number" value="" placeholder="0"></div></div>'+
@@ -1814,16 +1814,16 @@ function openSettings(){
 
 function openData(){
   showModal('<h3>Data &amp; Backup</h3>'+
-    '<div class="field"><button class="btn" style="width:100%" id="d_json">â¬‡ Export full backup (JSON)</button><div class="hint">Everything. Use to restore or move devices.</div></div>'+
-    '<div class="field"><button class="btn" style="width:100%" id="d_csv">â¬‡ Export this period as CSV</button><div class="hint">'+periodRange().label+' â€” opens in Excel/Sheets.</div></div>'+
-    '<div class="field"><button class="btn" style="width:100%" id="d_pdf">ðŸ–¨ Print / Save as PDF</button><div class="hint">Uses your browser print dialog.</div></div>'+
+    '<div class="field"><button class="btn" style="width:100%" id="d_json">⬇ Export full backup (JSON)</button><div class="hint">Everything. Use to restore or move devices.</div></div>'+
+    '<div class="field"><button class="btn" style="width:100%" id="d_csv">⬇ Export this period as CSV</button><div class="hint">'+periodRange().label+' — opens in Excel/Sheets.</div></div>'+
+    '<div class="field"><button class="btn" style="width:100%" id="d_pdf">🖨 Print / Save as PDF</button><div class="hint">Uses your browser print dialog.</div></div>'+
     '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
     '<div class="field"><label>Import backup (JSON)</label><input type="file" id="d_impj" accept=".json"></div>'+
     '<div class="field"><label>Import statement (CSV)</label><input type="file" id="d_impc" accept=".csv"><div class="hint">You\'ll map the date / amount / description columns next.</div></div>'+
     '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
-    '<div class="field"><button class="btn" style="width:100%" id="d_bak">â†¶ Restore from auto-backup</button><div class="hint">Automatic local snapshots (last 6). Use if data was lost or a sync went wrong.</div></div>'+
+    '<div class="field"><button class="btn" style="width:100%" id="d_bak">↶ Restore from auto-backup</button><div class="hint">Automatic local snapshots (last 6). Use if data was lost or a sync went wrong.</div></div>'+
     '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">'+
-    '<div class="field"><button class="btn ghost danger" style="width:100%;border:1px solid var(--line)" id="d_clear">ðŸ—‘ Clear All Data</button><div class="hint">Wipes every card, transaction, payment and budget on this device (and in Drive if synced). Export a backup first if unsure.</div></div>'+
+    '<div class="field"><button class="btn ghost danger" style="width:100%;border:1px solid var(--line)" id="d_clear">🗑 Clear All Data</button><div class="hint">Wipes every card, transaction, payment and budget on this device (and in Drive if synced). Export a backup first if unsure.</div></div>'+
     '<div class="modal-actions"><span></span><button class="btn" onclick="closeModal()">Close</button></div>');
   document.getElementById('d_json').onclick=exportJSON;
   document.getElementById('d_csv').onclick=exportCSV;
@@ -1835,13 +1835,13 @@ function openData(){
 }
 function openBackups(){
   const baks=backups();
-  if(!baks.length){toast('No backups yet â€” they build up as you use the app');return;}
+  if(!baks.length){toast('No backups yet — they build up as you use the app');return;}
   const rows=baks.map(b=>{
     let d={}; try{d=JSON.parse(b.data);}catch(e){}
     const nT=(d.txns||[]).length, nC=(d.cards||[]).length;
     const bud=d.budget&&((+d.budget.total>0)||Object.keys(d.budget.categories||{}).length>0)?'budget set':'no budget';
     return '<div class="bak-row"><div class="bak-m"><b>'+new Date(b.ts).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+'</b>'+
-      '<small>'+nC+' cards Â· '+nT+' txns Â· '+bud+'</small></div>'+
+      '<small>'+nC+' cards · '+nT+' txns · '+bud+'</small></div>'+
       '<button class="btn sm" data-bts="'+b.ts+'">Restore</button></div>';
   }).join('');
   showModal('<h3>Restore from Backup</h3><p style="font-size:13px;color:var(--slate);margin:-6px 0 12px">Pick a snapshot to roll back to. Your current state is backed up first, so this is reversible.</p>'+
@@ -1875,7 +1875,7 @@ function exportCSV(){
   const r=periodRange();const rows=[['Date','Merchant','Category','Card','Amount','Tags','Note']];
   db.txns.filter(t=>inPeriod(t.date,r)).sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(t=>{
     const c=db.cards.find(x=>x.id===t.cardId);
-    rows.push([t.date,t.merchant||'',t.category,(c?c.name+' â€¢â€¢'+c.last4:''),t.amount,t.tags||'',t.note||'']);
+    rows.push([t.date,t.merchant||'',t.category,(c?c.name+' ••'+c.last4:''),t.amount,t.tags||'',t.note||'']);
   });
   const csv=rows.map(r=>r.map(v=>'"'+(''+v).replace(/"/g,'""')+'"').join(',')).join('\n');
   download('cardledger-'+periodRange().label.replace(/\s/g,'-')+'.csv',csv,'text/csv');toast('CSV exported');
@@ -1905,7 +1905,7 @@ function parseCSVmap(text){
   const guess=(names)=>{const i=head.findIndex(h=>names.some(n=>(h||'').toLowerCase().includes(n)));return i<0?0:i;};
   const cardOpts=activeCards().map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
   const catOpts=(db.settings.categories||[]).map(c=>'<option>'+esc(c)+'</option>').join('');
-  showModal('<h3>Import Statement Â· Map Columns</h3><p class="hint" style="margin-top:-8px">'+(rows.length-1)+' rows found. Match each column, then preview.</p>'+
+  showModal('<h3>Import Statement · Map Columns</h3><p class="hint" style="margin-top:-8px">'+(rows.length-1)+' rows found. Match each column, then preview.</p>'+
     '<div class="field"><label>Date column</label><select id="m_date">'+opts+'</select></div>'+
     '<div class="field"><label>Amount column</label><select id="m_amt">'+opts+'</select></div>'+
     '<div class="field"><label>Description column</label><select id="m_desc">'+opts+'</select></div>'+
@@ -1940,10 +1940,10 @@ function csvPreview(dataRows,map){
   const body=items.map((it,i)=>'<tr'+(it.dup?' class="dup"':'')+'>'+
     '<td><input type="checkbox" class="csv-inc" data-i="'+i+'"'+(it.dup?'':' checked')+'></td>'+
     '<td>'+esc(it.date.slice(5))+'</td>'+
-    '<td>'+esc(it.merch||'â€”')+(it.dup?' <span class="dupflag">dup</span>':'')+'</td>'+
+    '<td>'+esc(it.merch||'—')+(it.dup?' <span class="dupflag">dup</span>':'')+'</td>'+
     '<td>'+esc(it.cat)+'</td>'+
     '<td class="amt">'+fmt(it.amt)+'</td></tr>').join('');
-  showModal('<h3>Preview Import</h3><p class="hint" style="margin-top:-8px">'+items.length+' rows Â· '+dupCount+' likely duplicate'+(dupCount!==1?'s':'')+' unchecked. Review, then import.</p>'+
+  showModal('<h3>Preview Import</h3><p class="hint" style="margin-top:-8px">'+items.length+' rows · '+dupCount+' likely duplicate'+(dupCount!==1?'s':'')+' unchecked. Review, then import.</p>'+
     '<div class="csv-preview"><table class="csv-table"><thead><tr><th></th><th>Date</th><th>Merchant</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
     '<div class="modal-actions"><button class="btn ghost sm" id="csv_all">Toggle All</button><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="csv_import">Import Selected</button></div></div>');
   document.getElementById('csv_all').onclick=()=>{const boxes=[].slice.call(document.querySelectorAll('.csv-inc'));const anyOff=boxes.some(b=>!b.checked);boxes.forEach(b=>b.checked=anyOff);};
@@ -1993,7 +1993,7 @@ const __reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-
 function fxCountUp(el){
   const txt=(el.textContent||'').trim();
   const m=txt.match(/^([^\d-]*)(-?[\d,]+(?:\.\d+)?)(.*)$/);
-  if(!m) return;                                   // no number (e.g. "â€” Not set") â†’ leave as-is
+  if(!m) return;                                   // no number (e.g. "— Not set") → leave as-is
   const pre=m[1], suf=m[3], target=parseFloat(m[2].replace(/,/g,''));
   if(!isFinite(target)) return;
   const dec=(m[2].split('.')[1]||'').length;
