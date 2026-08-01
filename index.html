@@ -138,8 +138,11 @@
 
   /* ---------- cards / sections ---------- */
   .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:16px}
-  .dash-2col{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:16px;align-items:start}
-  .dash-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+  /* bento rows: paired cards align and match height */
+  .bento-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;align-items:stretch}
+  .bento-row>.card{display:flex;flex-direction:column;margin-bottom:0}
+  .bento-row>.card>.donut-wrap{flex:1}
+  .bento-row>.card>.ins-list{flex:1}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
   .card h2{font-size:var(--fs-lg);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-.02em}
   .card h2 .muted{font-family:Inter;font-weight:450;font-size:var(--fs-xs);color:var(--slate);letter-spacing:normal}
@@ -185,9 +188,9 @@
   .grid .card h2{align-items:baseline}
   .grid .card h2 .muted{background:var(--paper);color:var(--slate);padding:4px 10px;border-radius:var(--r-pill);
     font-size:11px;font-weight:500;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;letter-spacing:0}
-  .chartbox{position:relative;height:240px;margin-top:12px}
-  .donut-wrap{display:grid;grid-template-columns:minmax(0,240px) 1fr;gap:22px;align-items:center;margin-top:12px}
-  .donut-wrap .chartbox{margin-top:0}
+  .chartbox{position:relative;height:200px;margin-top:12px}
+  .donut-wrap{display:grid;grid-template-columns:minmax(0,196px) 1fr;gap:22px;align-items:center;margin-top:12px}
+  .donut-wrap .chartbox{margin-top:0;height:196px}
   .donut-wrap .legend{margin-top:0;padding-top:0;border-top:0;grid-template-columns:1fr 1fr;gap:2px 18px;align-content:center}
   @media (max-width:760px){.donut-wrap{grid-template-columns:1fr;gap:6px}
     .donut-wrap .legend{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}}
@@ -320,6 +323,7 @@
     .tiles{grid-template-columns:repeat(2,1fr)}
     .grid{grid-template-columns:1fr}
     .dash-2col{grid-template-columns:1fr}
+    .bento-row{grid-template-columns:1fr}
     .crow{grid-template-columns:1.4fr 1fr auto;row-gap:6px}
     .crow .u-lim,.crow .u-out{display:none}
   }
@@ -1024,12 +1028,9 @@ function render(){
     return;
   }
   if(db.cards.length===0){ app.innerHTML=emptyState(); wireEmpty(); return; }
-  app.innerHTML = tilesHTML()+cardsHTML()+
-    '<div class="dash-2col">'+
-      '<div class="dash-col">'+whereItWentHTML()+spendTrendHTML()+'</div>'+
-      '<div class="dash-col">'+insightsHTML()+budgetHTML()+owedHTML()+'</div>'+
-    '</div>'+
-    recurringHTML();
+  const row1=bentoRow(whereItWentHTML(), insightsHTML());
+  const row3=bentoRow(budgetHTML(), owedHTML());
+  app.innerHTML = tilesHTML()+cardsHTML()+row1+spendTrendHTML()+row3+recurringHTML();
   drawCharts();
   wireCards();
   app.querySelectorAll('.owed-row[data-oid]').forEach(el=>el.onclick=()=>openTxnDetail(el.dataset.oid));
@@ -1296,6 +1297,12 @@ function budgetHTML(){
   }).join('');
   return '<div class="card" style="margin-bottom:13px"><h2>Budget vs Actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
 }
+function bentoRow(a,b){
+  const items=[a,b].filter(x=>x&&x.trim());
+  if(items.length===2) return '<div class="bento-row">'+items[0]+items[1]+'</div>';
+  if(items.length===1) return items[0];
+  return '';
+}
 function owedHTML(){
   const list=db.txns.filter(t=>t.share!=null&&!t.settled&&(t.amount-t.share)>0.005).sort((a,b)=>pdate(b.date)-pdate(a.date));
   if(!list.length)return '';
@@ -1496,7 +1503,7 @@ function drawCharts(){
   const tcv=document.getElementById('trendChart');
   charts.trend=new Chart(tcv,{type:'bar',
     data:{labels,datasets:[{data:vals,backgroundColor:'#5B92D4',borderRadius:4,maxBarThickness:22}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>' '+fmt(x.parsed.y)}}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>' '+fmt(x.parsed.y)}}},
       scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#9AA7BB',maxRotation:0,autoSkip:true}},
         y:{grid:{color:'#28323F'},ticks:{font:{size:10},color:'#9AA7BB',callback:v=>sym()+(v>=1000?(v/1000)+'k':v)}}}}});
 }
