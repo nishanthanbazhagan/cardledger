@@ -138,6 +138,8 @@
 
   /* ---------- cards / sections ---------- */
   .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:16px}
+  .dash-2col{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:16px;align-items:start}
+  .dash-col{display:flex;flex-direction:column;gap:14px;min-width:0}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
   .card h2{font-size:var(--fs-lg);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-.02em}
   .card h2 .muted{font-family:Inter;font-weight:450;font-size:var(--fs-xs);color:var(--slate);letter-spacing:normal}
@@ -317,6 +319,7 @@
   @media (max-width:860px){
     .tiles{grid-template-columns:repeat(2,1fr)}
     .grid{grid-template-columns:1fr}
+    .dash-2col{grid-template-columns:1fr}
     .crow{grid-template-columns:1.4fr 1fr auto;row-gap:6px}
     .crow .u-lim,.crow .u-out{display:none}
   }
@@ -608,10 +611,9 @@
     border:1px solid rgba(255,255,255,.06);
     box-shadow:0 12px 32px rgba(0,0,0,.32), 0 1px 0 rgba(255,255,255,.04) inset;
   }
-  /* animated brand mark */
-  .mark{background:linear-gradient(135deg,#30608F,#2C557F,#5B92D4,#30608F)!important;background-size:220% 220%!important;
-    animation:markShift 7s ease infinite; box-shadow:0 8px 22px rgba(20,48,75,.5), inset 0 1px 0 rgba(255,255,255,.28)}
-  @keyframes markShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  /* brand mark (static premium gradient) */
+  .mark{background:linear-gradient(135deg,#30608F,#2C557F 45%,#5B92D4 78%,#16304A)!important;
+    box-shadow:0 8px 22px rgba(20,48,75,.5), inset 0 1px 0 rgba(255,255,255,.28)}
   /* gradient glowing primary buttons */
   .btn.primary{background:linear-gradient(180deg,#6DA2E2,#4A7EC0)!important;border-color:#4A7EC0!important;
     box-shadow:0 6px 18px rgba(74,126,192,.36), 0 1px 0 rgba(255,255,255,.28) inset!important}
@@ -623,27 +625,22 @@
   /* active tab glow */
   .tab[aria-pressed="true"]{text-shadow:0 0 22px rgba(91,146,212,.55)}
   .tab[aria-pressed="true"]{box-shadow:0 2px 0 var(--brand), 0 6px 14px rgba(91,146,212,.35)}
-  /* progress bars: sheen + smooth grow */
+  /* progress bars: smooth grow (no sheen) */
   .track{overflow:hidden}
-  .fill{transition:width .85s var(--ease);box-shadow:0 0 12px rgba(255,255,255,.10), 0 0 6px rgba(91,146,212,.35);position:relative}
-  .fill::after{content:"";position:absolute;inset:0;
-    background:linear-gradient(90deg,transparent, rgba(255,255,255,.28), transparent);
-    transform:translateX(-100%);animation:barSheen 2.4s var(--ease) .3s infinite}
-  @keyframes barSheen{to{transform:translateX(100%)}}
+  .fill{transition:width .8s var(--ease)}
   /* entrance motion (subtle, staggered) */
   @keyframes fxUp{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
   .tiles .tile{animation:fxUp .42s var(--ease) both}
   .tiles .tile:nth-child(2){animation-delay:.06s}
   .tiles .tile:nth-child(3){animation-delay:.12s}
   .tiles .tile:nth-child(4){animation-delay:.18s}
-  #app>.card,#app>.grid{animation:fxUp .5s var(--ease) both}
-  #app>.grid{animation-delay:.08s}
+  #app>.card,#app>.dash-2col{animation:fxUp .5s var(--ease) both}
+  #app>.dash-2col{animation-delay:.08s}
   /* count-up helper: reserve tabular width so digits don't jitter */
   .v.mono{font-variant-numeric:tabular-nums}
   /* honor reduced motion */
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-    .fill::after{display:none}
   }
   /* ================================================================== */
 </style>
@@ -1027,7 +1024,12 @@ function render(){
     return;
   }
   if(db.cards.length===0){ app.innerHTML=emptyState(); wireEmpty(); return; }
-  app.innerHTML = tilesHTML()+cardsHTML()+chartsHTML()+insightsHTML()+owedHTML()+recurringHTML()+budgetHTML();
+  app.innerHTML = tilesHTML()+cardsHTML()+
+    '<div class="dash-2col">'+
+      '<div class="dash-col">'+whereItWentHTML()+spendTrendHTML()+'</div>'+
+      '<div class="dash-col">'+insightsHTML()+budgetHTML()+owedHTML()+'</div>'+
+    '</div>'+
+    recurringHTML();
   drawCharts();
   wireCards();
   app.querySelectorAll('.owed-row[data-oid]').forEach(el=>el.onclick=()=>openTxnDetail(el.dataset.oid));
@@ -1271,13 +1273,13 @@ function cardsHTML(){
     modeBar+'<div style="margin-top:8px">'+rows+'</div></div>';
 }
 
-function chartsHTML(){
-  return '<div class="grid">'+
-    '<div class="card"><h2>Where It Went <span class="muted">'+periodRange().label+' · by category</span></h2>'+
-      '<div class="donut-wrap"><div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div></div>'+
-    '<div class="card"><h2>Spend Trend <span class="muted">'+periodRange().label+'</span></h2>'+
-      '<div class="chartbox"><canvas id="trendChart"></canvas></div></div>'+
-    '</div>';
+function whereItWentHTML(){
+  return '<div class="card"><h2>Where It Went <span class="muted">'+periodRange().label+' · by category</span></h2>'+
+    '<div class="donut-wrap"><div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div></div>';
+}
+function spendTrendHTML(){
+  return '<div class="card"><h2>Spend Trend <span class="muted">'+periodRange().label+'</span></h2>'+
+    '<div class="chartbox"><canvas id="trendChart"></canvas></div></div>';
 }
 function budgetHTML(){
   const tx=periodTxns(), byCat={};
