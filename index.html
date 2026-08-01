@@ -140,7 +140,8 @@
   .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:16px}
   /* bento rows: paired cards align and match height */
   .bento-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;align-items:stretch}
-  .bento-row>.card{display:flex;flex-direction:column;margin-bottom:0}
+  .bento-solo{margin-bottom:16px}
+  .bento-row>.card{display:flex;flex-direction:column;margin-bottom:0;height:100%}
   .bento-row>.card>.donut-wrap{flex:1}
   .bento-row>.card>.ins-list{flex:1}
   .trend-box{height:220px;overflow:hidden}
@@ -1298,13 +1299,12 @@ function budgetHTML(){
     const col=over?'var(--over)':pct>85?'var(--caution)':'var(--good)';
     return '<div><div class="line"><span>'+esc(cat)+'</span><span class="amt" style="color:'+(over?'var(--over)':'var(--ink)')+'">'+fmt(actual)+' <span style="color:var(--slate);font-weight:400">/ '+fmt(bg)+'</span></span></div><div class="track" style="height:9px"><div class="fill" style="width:'+pct+'%;background:'+col+'"></div></div></div>';
   }).join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Budget vs Actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
+  return '<div class="card"><h2>Budget vs Actual <span class="muted">top categories · '+view.type+' budget</span></h2><div class="bud">'+bars+'</div></div>';
 }
 function bentoRow(a,b){
   const items=[a,b].filter(x=>x&&x.trim());
-  if(items.length===2) return '<div class="bento-row">'+items[0]+items[1]+'</div>';
-  if(items.length===1) return items[0];
-  return '';
+  if(!items.length) return '';
+  return '<div class="'+(items.length===2?'bento-row':'bento-solo')+'">'+items.join('')+'</div>';
 }
 function owedHTML(){
   const list=db.txns.filter(t=>t.share!=null&&!t.settled&&(t.amount-t.share)>0.005).sort((a,b)=>pdate(b.date)-pdate(a.date));
@@ -1317,7 +1317,7 @@ function owedHTML(){
       '<div class="owed-a mono">'+fmt(owed)+'</div></div>';
   }).join('');
   const more=list.length>8?'<div class="owed-more">+'+(list.length-8)+' more</div>':'';
-  return '<div class="card owed-card" style="margin-bottom:13px"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
+  return '<div class="card owed-card"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
 }
 function recurringHTML(){  const rec=detectRecurring();
   if(!rec.length)return '';
@@ -1395,7 +1395,7 @@ function insightsHTML(){
     return '<div class="ins-row ins-c-'+it.c+(it.c==='over'?' urgent':'')+'"><span class="ins-ic" style="color:'+col+';background:'+bg+'">'+it.g+'</span>'+
       '<div class="ins-row-main"><div class="ins-row-top"><span class="ins-label">'+it.label+'</span><span class="ins-val">'+it.value+'</span></div><small>'+it.sub+'</small>'+bar(it.bar)+'</div></div>';
   }).join('');
-  return '<div class="card" style="margin-bottom:13px"><h2>Insights <span class="muted">'+r.label+'</span></h2><div class="ins-list">'+heroHTML+rowsHTML+'</div></div>';
+  return '<div class="card"><h2>Insights <span class="muted">'+r.label+'</span></h2><div class="ins-list">'+heroHTML+rowsHTML+'</div></div>';
 }
 
 let txFilter={q:'',card:'',cat:''};
