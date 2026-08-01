@@ -143,6 +143,7 @@
   .bento-row>.card{display:flex;flex-direction:column;margin-bottom:0}
   .bento-row>.card>.donut-wrap{flex:1}
   .bento-row>.card>.ins-list{flex:1}
+  .trend-box{height:220px;overflow:hidden}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
   .card h2{font-size:var(--fs-lg);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-.02em}
   .card h2 .muted{font-family:Inter;font-weight:450;font-size:var(--fs-xs);color:var(--slate);letter-spacing:normal}
@@ -189,8 +190,8 @@
   .grid .card h2 .muted{background:var(--paper);color:var(--slate);padding:4px 10px;border-radius:var(--r-pill);
     font-size:11px;font-weight:500;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;letter-spacing:0}
   .chartbox{position:relative;height:200px;margin-top:12px}
-  .donut-wrap{display:grid;grid-template-columns:minmax(0,196px) 1fr;gap:22px;align-items:center;margin-top:12px}
-  .donut-wrap .chartbox{margin-top:0;height:196px}
+  .donut-wrap{display:grid;grid-template-columns:minmax(0,230px) 1fr;gap:24px;align-items:center;margin-top:12px}
+  .donut-wrap .chartbox{margin-top:0;height:230px}
   .donut-wrap .legend{margin-top:0;padding-top:0;border-top:0;grid-template-columns:1fr 1fr;gap:2px 18px;align-content:center}
   @media (max-width:760px){.donut-wrap{grid-template-columns:1fr;gap:6px}
     .donut-wrap .legend{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}}
@@ -567,6 +568,7 @@
   .owed-m small{color:var(--slate);font-size:var(--fs-xs)}
   .owed-a{flex:none;font-weight:700;font-size:var(--fs-md);color:var(--good)}
   .owed-more{font-size:11px;color:var(--slate);padding:8px 2px 0}
+  .owed-cap{font-size:11px;color:var(--slate-2);margin:-2px 0 6px}
   /* ======================================================== */
 
   /* ==================== FINTECH ENHANCEMENT LAYER ==================== */
@@ -1279,8 +1281,8 @@ function whereItWentHTML(){
     '<div class="donut-wrap"><div class="chartbox"><canvas id="catChart"></canvas></div><div class="legend" id="catLegend"></div></div></div>';
 }
 function spendTrendHTML(){
-  return '<div class="card"><h2>Spend Trend <span class="muted">'+periodRange().label+'</span></h2>'+
-    '<div class="chartbox"><canvas id="trendChart"></canvas></div></div>';
+  return '<div class="card trend-card" style="margin-bottom:16px"><h2>Spend Trend <span class="muted">'+periodRange().label+'</span></h2>'+
+    '<div class="chartbox trend-box"><canvas id="trendChart"></canvas></div></div>';
 }
 function budgetHTML(){
   const tx=periodTxns(), byCat={};
@@ -1314,7 +1316,7 @@ function owedHTML(){
       '<div class="owed-a mono">'+fmt(owed)+'</div></div>';
   }).join('');
   const more=list.length>8?'<div class="owed-more">+'+(list.length-8)+' more</div>':'';
-  return '<div class="card owed-card" style="margin-bottom:13px"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-list">'+rows+more+'</div></div>';
+  return '<div class="card owed-card" style="margin-bottom:13px"><h2>Owed to You <span class="muted">'+fmt(total)+' · '+list.length+' unsettled</span></h2><div class="owed-cap">Receivables across all months — not filtered by the period lens</div><div class="owed-list">'+rows+more+'</div></div>';
 }
 function recurringHTML(){  const rec=detectRecurring();
   if(!rec.length)return '';
