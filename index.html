@@ -535,6 +535,90 @@
   @keyframes menuIn{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
   @media print{.actions,.lens .seg,.arrow,.toolbar,.rowbtn,header .synbar{display:none!important}}
+  /* ==================== FINTECH ENHANCEMENT LAYER ==================== */
+  body{
+    background:
+      radial-gradient(1200px 620px at 10% -10%, rgba(91,146,212,.12), transparent 60%),
+      radial-gradient(1000px 560px at 100% -6%, rgba(47,191,156,.08), transparent 55%),
+      radial-gradient(900px 700px at 50% 120%, rgba(91,146,212,.06), transparent 60%),
+      var(--paper);
+    background-attachment:fixed;
+  }
+  /* glass tiles with a hairline gradient edge + lift */
+  .tile{
+    background:linear-gradient(180deg, rgba(30,40,57,.72), rgba(19,26,39,.72));
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.06);
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 12px 32px rgba(0,0,0,.36);
+    transition:transform .28s var(--ease), box-shadow .28s var(--ease), border-color .28s var(--ease);
+  }
+  .tile::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+    background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 42%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;}
+  .tile:hover{transform:translateY(-3px);border-color:rgba(91,146,212,.32);
+    box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 20px 44px rgba(0,0,0,.5)}
+  .tile .k{text-transform:uppercase;letter-spacing:.10em;font-size:10.5px;color:var(--slate-2)}
+  /* dramatic hero tile */
+  .tiles .tile:first-child{
+    background:
+      radial-gradient(320px 180px at 88% -30%, rgba(110,161,222,.40), transparent 70%),
+      linear-gradient(150deg, #21406B 0%, #1B2C48 46%, #131B2A 100%);
+    border-color:rgba(91,146,212,.32);
+    box-shadow:0 14px 44px rgba(20,48,90,.46), 0 1px 0 rgba(255,255,255,.10) inset;
+  }
+  .tiles .tile:first-child .v{
+    font-size:34px;line-height:1.05;
+    background:linear-gradient(92deg,#F1F6FC,#BFE0FF 90%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 2px 10px rgba(120,170,230,.28));
+  }
+  .tiles .tile:first-child .k{color:#AFC6E6}
+  /* glass cards */
+  .card{
+    background:linear-gradient(180deg, rgba(24,33,47,.78), rgba(18,25,38,.82));
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.06);
+    box-shadow:0 12px 32px rgba(0,0,0,.32), 0 1px 0 rgba(255,255,255,.04) inset;
+  }
+  /* animated brand mark */
+  .mark{background:linear-gradient(135deg,#30608F,#2C557F,#5B92D4,#30608F)!important;background-size:220% 220%!important;
+    animation:markShift 7s ease infinite; box-shadow:0 8px 22px rgba(20,48,75,.5), inset 0 1px 0 rgba(255,255,255,.28)}
+  @keyframes markShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  /* gradient glowing primary buttons */
+  .btn.primary{background:linear-gradient(180deg,#6DA2E2,#4A7EC0)!important;border-color:#4A7EC0!important;
+    box-shadow:0 6px 18px rgba(74,126,192,.36), 0 1px 0 rgba(255,255,255,.28) inset!important}
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(74,126,192,.52), 0 1px 0 rgba(255,255,255,.32) inset!important}
+  /* segmented + nav glass */
+  .seg,.nav{background:rgba(13,18,28,.6);border-color:rgba(255,255,255,.07);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .seg button[aria-pressed="true"]{box-shadow:0 4px 14px rgba(91,146,212,.28), 0 1px 0 rgba(255,255,255,.06) inset}
+  /* active tab glow */
+  .tab[aria-pressed="true"]{text-shadow:0 0 22px rgba(91,146,212,.55)}
+  .tab[aria-pressed="true"]{box-shadow:0 2px 0 var(--brand), 0 6px 14px rgba(91,146,212,.35)}
+  /* progress bars: sheen + smooth grow */
+  .track{overflow:hidden}
+  .fill{transition:width .85s var(--ease);box-shadow:0 0 12px rgba(255,255,255,.10), 0 0 6px rgba(91,146,212,.35);position:relative}
+  .fill::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent, rgba(255,255,255,.28), transparent);
+    transform:translateX(-100%);animation:barSheen 2.4s var(--ease) .3s infinite}
+  @keyframes barSheen{to{transform:translateX(100%)}}
+  /* entrance motion (subtle, staggered) */
+  @keyframes fxUp{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  .tiles .tile{animation:fxUp .42s var(--ease) both}
+  .tiles .tile:nth-child(2){animation-delay:.06s}
+  .tiles .tile:nth-child(3){animation-delay:.12s}
+  .tiles .tile:nth-child(4){animation-delay:.18s}
+  #app>.card,#app>.grid{animation:fxUp .5s var(--ease) both}
+  #app>.grid{animation-delay:.08s}
+  /* count-up helper: reserve tabular width so digits don't jitter */
+  .v.mono{font-variant-numeric:tabular-nums}
+  /* honor reduced motion */
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+    .fill::after{display:none}
+  }
+  /* ================================================================== */
 </style>
 </head>
 <body>
@@ -1673,7 +1757,7 @@ document.getElementById('btnTxn').onclick=()=>openTxn();
 document.getElementById('btnSettings').onclick=openSettings;
 document.getElementById('btnData').onclick=openData;
 document.getElementById('btnSync').onclick=connectDrive;
-document.querySelectorAll('#tabs .tab').forEach(b=>b.onclick=()=>{screen=b.dataset.s;budMode='view';cardMode='view';render();});
+document.querySelectorAll('#tabs .tab').forEach(b=>b.onclick=()=>{screen=b.dataset.s;budMode='view';cardMode='view';render();fxEnter();});
 document.getElementById('segLens').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   view.type=b.dataset.t;cardMode='view';
   document.querySelectorAll('#segLens button').forEach(x=>x.setAttribute('aria-pressed','false'));
@@ -1684,9 +1768,32 @@ document.getElementById('navNext').onclick=()=>{cardMode='view';shiftPeriod(1);r
 window.closeModal=closeModal;
 
 /* ---------- boot ---------- */
+/* fintech motion: animate tile numbers counting up on screen entry */
+const __reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fxCountUp(el){
+  const txt=(el.textContent||'').trim();
+  const m=txt.match(/^([^\d-]*)(-?[\d,]+(?:\.\d+)?)(.*)$/);
+  if(!m) return;                                   // no number (e.g. "— Not set") → leave as-is
+  const pre=m[1], suf=m[3], target=parseFloat(m[2].replace(/,/g,''));
+  if(!isFinite(target)) return;
+  const dec=(m[2].split('.')[1]||'').length;
+  const grp=n=>{const s=Math.abs(n).toFixed(dec).split('.');s[0]=s[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return (n<0?'-':'')+s.join('.');};
+  const dur=700, t0=performance.now();
+  function step(now){
+    let p=Math.min(1,(now-t0)/dur); p=1-Math.pow(1-p,3);   // easeOutCubic
+    el.textContent=pre+grp(target*p)+suf;
+    if(p<1) requestAnimationFrame(step); else el.textContent=txt;
+  }
+  requestAnimationFrame(step);
+}
+function fxEnter(){
+  if(__reduceMotion) return;
+  document.querySelectorAll('#app .tiles .v.mono').forEach(fxCountUp);
+}
 loadCfg();loadLocal();
 if(db.settings&&db.settings.currency)cfg.currency=db.settings.currency;
 render();
+fxEnter();
 autoReconnect();
 </script>
 </body>
