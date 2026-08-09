@@ -552,6 +552,7 @@
   .splithint b{color:var(--ink);font-weight:600}
   .splithint .owed{color:var(--good);font-weight:600}
   .splithint .mut{color:var(--slate-2)}
+  .lbl-hint{font-weight:400;color:var(--slate-2);font-size:11px}
   .splitbadge{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
     color:var(--brand);background:var(--brand-soft);border:1px solid rgba(91,146,212,.3);border-radius:var(--r-pill);padding:1px 7px;margin-left:7px;vertical-align:middle}
   .splitbadge.settled{color:var(--good);background:var(--good-soft);border-color:rgba(47,191,156,.3)}
@@ -1702,21 +1703,28 @@ function openTxn(id){
     '<div class="field splitrow"><label class="splitlabel"><input type="checkbox" id="t_split"'+(t&&t.share!=null?' checked':'')+'> Split this expense</label></div>'+
     '<div id="t_splitbox" style="display:'+(t&&t.share!=null?'block':'none')+'">'+
       '<div class="row2"><div class="field"><label>Split between (people)</label><input id="t_splitn" type="number" min="2" step="1" value="'+(t&&t.splitN?t.splitN:2)+'"></div>'+
-      '<div class="field"><label>Your share</label><input id="t_share" type="number" step="0.01" value="'+(t&&t.share!=null?t.share:'')+'" placeholder="0"></div></div>'+
+      '<div class="field"><label>Others paid upfront (optional)</label><input id="t_upfront" type="number" step="0.01" value="'+(t&&t.upfront?t.upfront:'')+'" placeholder="0"></div></div>'+
+      '<div class="field"><label>Your share <span class="lbl-hint">— 0 if you\'re only fronting it</span></label><input id="t_share" type="number" step="0.01" value="'+(t&&t.share!=null?t.share:'')+'" placeholder="0"></div>'+
       '<div class="splithint" id="t_splithint"></div></div>'+
     '<div class="modal-actions"><span></span>'+
     '<div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="t_save">Save</button></div></div>');
   const splitCb=document.getElementById('t_split'), splitBox=document.getElementById('t_splitbox');
-  const splitN=document.getElementById('t_splitn'), shareIn=document.getElementById('t_share'), splitHint=document.getElementById('t_splithint');
+  const splitN=document.getElementById('t_splitn'), shareIn=document.getElementById('t_share'), splitHint=document.getElementById('t_splithint'), upfrontIn=document.getElementById('t_upfront');
   let shareEdited=!!(t&&t.share!=null);
   function recalcShare(force){
-    const amt=+document.getElementById('t_amt').value||0, n=Math.max(2,+splitN.value||2);
-    if((force||!shareEdited)&&amt>0){shareIn.value=Math.round(amt/n*100)/100;}
-    const sh=Math.min(amt,+shareIn.value||0), owed=Math.max(0,amt-sh);
-    splitHint.innerHTML=amt>0?('You pay <b>'+fmt(amt)+'</b> on the card · your share <b>'+fmt(sh)+'</b> · <span class="owed">'+fmt(owed)+' owed to you</span><br><span class="mut">Budget &amp; insights count only your share; card totals keep the full charge.</span>'):'';
+    const amt=+document.getElementById('t_amt').value||0, n=Math.max(2,+splitN.value||2), up=Math.min(amt,Math.max(0,+upfrontIn.value||0));
+    if((force||!shareEdited)&&amt>0){shareIn.value=Math.round(Math.max(0,amt-up)/n*100)/100;}
+    const sh=Math.min(amt,Math.max(0,+shareIn.value||0)), owed=Math.max(0,amt-sh);
+    splitHint.innerHTML=amt>0?(
+      (sh<=0
+        ? 'You\'re fronting the full <b>'+fmt(amt)+'</b> — none counts as your spending · <span class="owed">'+fmt(owed)+' owed to you</span>'
+        : 'You pay <b>'+fmt(amt)+'</b> on the card · your share <b>'+fmt(sh)+'</b>'+(up>0?' · others upfront <b>'+fmt(up)+'</b>':'')+' · <span class="owed">'+fmt(owed)+' owed to you</span>')
+      +'<br><span class="mut">Budget &amp; insights count only your share; card totals keep the full charge.</span>'
+    ):'';
   }
   splitCb.onchange=()=>{splitBox.style.display=splitCb.checked?'block':'none';if(splitCb.checked){shareEdited=false;recalcShare(true);}};
   splitN.oninput=()=>recalcShare(true);
+  upfrontIn.oninput=()=>recalcShare(true);
   document.getElementById('t_amt').addEventListener('input',()=>{if(splitCb.checked)recalcShare(false);});
   shareIn.oninput=()=>{shareEdited=true;recalcShare(false);};
   if(splitCb.checked)recalcShare(false);
@@ -1724,17 +1732,19 @@ function openTxn(id){
     clearErrors();
     const amt=+document.getElementById('t_amt').value;
     if(!amt||amt<=0){markError(document.getElementById('t_amt'),'Enter a valid amount').focus();return;}
-    let share=null, splitNv=null;
+    let share=null, splitNv=null, upfront=0;
     if(splitCb.checked){
-      share=+shareIn.value;
-      if(!(share>0)||share>amt){markError(shareIn,'Share must be between 0 and the amount').focus();return;}
+      share=+shareIn.value||0;
+      if(share<0||share>amt){markError(shareIn,'Share must be between 0 and the amount').focus();return;}
+      upfront=Math.max(0,+upfrontIn.value||0);
+      if(upfront>amt){markError(upfrontIn,'Upfront can\'t exceed the amount').focus();return;}
       splitNv=Math.max(2,+splitN.value||2);
     }
     const obj={id:t?t.id:uid(),date:document.getElementById('t_date').value,amount:amt,
       merchant:document.getElementById('t_merch').value.trim(),cardId:document.getElementById('t_card').value,
       category:document.getElementById('t_cat').value,tags:document.getElementById('t_tags').value.trim(),
       note:document.getElementById('t_note').value.trim(),
-      share:share,splitN:splitNv,repayments:(share!=null?((t&&t.repayments)||[]):null),
+      share:share,splitN:splitNv,upfront:(share!=null?upfront:null),repayments:(share!=null?((t&&t.repayments)||[]):null),
       updatedAt:now()};
     if(t)Object.assign(t,obj);else db.txns.push(obj);
     closeModal();persist();toast('Spend saved');
@@ -1764,6 +1774,7 @@ function openTxnDetail(id){
   const statusPill=isSplit?('<span class="split-status '+st+'">'+(st==='settled'?'Settled':st==='part'?'Partly settled':'Unsettled')+'</span>'):'';
   const splitBlock=isSplit?(
     '<div class="dl"><span>Full charge</span><b>'+fmt(t.amount)+'</b></div>'+
+    ((+t.upfront>0)?'<div class="dl"><span>Others paid upfront</span><b>'+fmt(t.upfront)+'</b></div>':'')+
     '<div class="dl"><span>Your share'+(t.splitN?' (of '+t.splitN+')':'')+'</span><b>'+fmt(t.share)+'</b></div>'+
     '<div class="dl"><span>Owed to you</span><b>'+fmt(owed)+'</b></div>'+
     '<div class="dl"><span>Recovered</span><b class="owed-ok">'+fmt(rec)+'</b></div>'+
